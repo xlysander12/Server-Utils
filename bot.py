@@ -1,19 +1,65 @@
 import os
+import sys
 import random
 from dotenv import load_dotenv
 import discord
+import mysql.connector as mysql
+import json
 
 from discord.ext import commands
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-bot = commands.Bot(command_prefix='!')
+# Connect to database
+try:
+    mydb = mysql.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="discordbot_data"
+    )
+except mysql.Error:
+    sys.exit("Couldn't Connect to database")
+
+mycursor = mydb.cursor()
+
+
+# Connected
+
+def get_prefix(client, message):
+    with open("prefixes.json", 'r') as f:
+        prefixes = json.load(f)
+    return prefixes[str(message.guild.id)]
+
+
+bot = commands.Bot(command_prefix=get_prefix)
 
 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
+
+
+@bot.event
+async def on_guild_join(guild):
+    with open("prefixes.json", 'r') as f:
+        prefixes = json.load(f)
+
+    prefixes[str(guild.id)] = '!'
+
+    with open("prefixes.json", 'w') as f:
+        json.dump(prefixes, f, indent=4)
+
+
+@bot.event
+async def on_guild_remove(guild):
+    with open("prefixes.json", 'r') as f:
+        prefixes = json.load(f)
+    prefixes.pop(str(guild.id))
+
+    with open("prefixes.json", 'w') as f:
+        json.dump(prefixes, f, indent=4)
 
 
 @bot.command(name='random', help="Responds with a random number beetween a and b")
@@ -42,7 +88,21 @@ async def create_channel(ctx, channel_category, channel_name):
         await guild.create_category(channel_category)
     if not existing_channel:
         print("Creating a new channel: " + channel_name)
-        await guild.create_text_channel(channel_name, category=discord.utils.get(guild.categories, name=channel_category))
+        await guild.create_text_channel(channel_name,
+                                        category=discord.utils.get(guild.categories, name=channel_category))
 
+
+@bot.command(name="changeprefix", help="Choose the prefix for your server")
+@commands.has_role("Absolute Admin")
+async def changeprefix(ctx, prefix):
+    with open("prefixes.json", 'r') as f:
+        prefixes = json.load(f)
+
+    prefixes[str(ctx.guild.id)] = prefix
+
+    with open("prefixes.json", 'w') as f:
+        json.dump(prefixes, f, indent=4)
+
+    await ctx.send("Prefix changed to " + prefix)
 
 bot.run(TOKEN)
