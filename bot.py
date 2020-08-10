@@ -92,8 +92,11 @@ async def roll_dice(ctx, number_of_dice: int = 2, number_of_sides: int = 6):
 
 
 @bot.command(name="create-channel", help="Creates a channel")
-@commands.has_role(get_adminrole)
 async def create_channel(ctx, channel_category, channel_name):
+    admin_role_id = get_adminrole(ctx)
+    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
+        await ctx.send("You are not an admin!")
+        return
     guild = ctx.guild
     existing_category = discord.utils.get(guild.categories, name=channel_category)
     existing_channel = discord.utils.get(guild.channels, name=channel_name)
@@ -107,8 +110,12 @@ async def create_channel(ctx, channel_category, channel_name):
 
 
 @bot.command(name="changeprefix", help="Choose the prefix for your server")
-@commands.has_role(get_adminrole)
 async def changeprefix(ctx, prefix):
+    admin_role_id = get_adminrole(ctx)
+    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
+        await ctx.send("You are not an admin!")
+        return
+
     with open("prefixes.json", 'r') as f:
         prefixes = json.load(f)
 
@@ -121,6 +128,7 @@ async def changeprefix(ctx, prefix):
 
 
 @bot.command(name="changeadminrole", help="Choose the role that can execute admin commands")
+@commands.has_guild_permissions(administrator=True)
 async def changeadmin(ctx, *, role: Role):
     with open("admins.json", 'r') as f:
         admins = json.load(f)
@@ -167,8 +175,11 @@ async def kickmember(ctx, target: Member, *, reason="None"):
 
 
 @bot.command(name='ban', help="Bans a member from the server", category="Administration")
-@commands.has_role(get_adminrole)
 async def banmember(ctx, target: Member, reason='None'):
+    admin_role_id = get_adminrole(ctx)
+    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
+        await ctx.send("You are not an admin!")
+        return
     channel = await target.create_dm()
     embed = discord.Embed(
         title="You have been banned",
