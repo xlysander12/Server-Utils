@@ -116,12 +116,28 @@ async def create_channel(ctx, channel_category, channel_name):
     existing_category = discord.utils.get(guild.categories, name=channel_category)
     existing_channel = discord.utils.get(guild.channels, name=channel_name)
     if not existing_category:
-        print("Creating new category: " + channel_category)
         await guild.create_category(channel_category)
     if not existing_channel:
-        print("Creating a new channel: " + channel_name)
         await guild.create_text_channel(channel_name,
                                         category=discord.utils.get(guild.categories, name=channel_category))
+
+        channel: TextChannel = discord.utils.get(ctx.guild.text_channels, name=channel_name)
+        category: discord.CategoryChannel = discord.utils.get(ctx.guild.categories, name=channel_category)
+
+        fdate = date.today().strftime('%d/%m/%Y')
+        now = datetime.now().strftime('%H:%M:%S')
+
+        logsembed = discord.Embed(
+            title="Channel created",
+            colour=discord.Color.dark_blue()
+        )
+
+        logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+        logsembed.add_field(name="Channel name", value=channel.mention, inline=True)
+        logsembed.add_field(name="Category", value=category.name, inline=True)
+
+        logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
+        await logschannel.send(embed=logsembed)
 
 
 @bot.command(name="changeprefix", help="Choose the prefix for your server")
@@ -141,6 +157,20 @@ async def changeprefix(ctx, prefix):
 
     await ctx.send("Prefix changed to " + prefix)
 
+    fdate = date.today().strftime('%d/%m/%Y')
+    now = datetime.now().strftime('%H:%M:%S')
+
+    logsembed = discord.Embed(
+        title="Server prefix changed",
+        colour=discord.Color.purple()
+    )
+
+    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.add_field(name="Prefix changed to", value=f'"{prefix}"', inline=True)
+
+    logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
+    await logschannel.send(embed=logsembed)
+
 
 @bot.command(name="changeadminrole", help="Choose the role that can execute admin commands")
 @commands.has_guild_permissions(administrator=True)
@@ -154,6 +184,20 @@ async def changeadmin(ctx, *, role: Role):
         json.dump(admins, f, indent=4)
 
     await ctx.send(f"Admin role changed to {role.mention}")
+
+    fdate = date.today().strftime('%d/%m/%Y')
+    now = datetime.now().strftime('%H:%M:%S')
+
+    logsembed = discord.Embed(
+        title="Admin role changed",
+        colour=discord.Color.red()
+    )
+
+    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.add_field(name="Role changed to", value=role.mention, inline=True)
+
+    logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
+    await logschannel.send(embed=logsembed)
 
 
 @bot.command(name="changelogschannel", help="Choose in which channel will bot's logs be in")
