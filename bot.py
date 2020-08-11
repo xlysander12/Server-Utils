@@ -8,14 +8,18 @@ import discord
 from discord import Member
 from discord import Role
 from discord import TextChannel
+from discord import User
 from discord.ext import commands
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
+servers_setup = dict()
+setup_prefix = None
+setup_role: Role = None
+setup_channel: TextChannel = None
 
-# Connected
 
 def get_prefix(client, message):
     with open("prefixes.json", 'r') as f:
@@ -43,6 +47,13 @@ bot = commands.Bot(command_prefix=get_prefix)
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
+    for guild in bot.guilds:
+        print(f"{guild.name} (id: {guild.id})")
+        servers_setup[guild.id] = {}
+        servers_setup[guild.id]['Step1'] = False
+        servers_setup[guild.id]['Step2'] = False
+        servers_setup[guild.id]['Step3'] = False
+        print(servers_setup[guild.id])
 
 
 @bot.event
@@ -89,6 +100,38 @@ async def on_guild_remove(guild):
 
     with open("logs.json", 'w') as f:
         json.dump(channels, f, indent=4)
+
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+    if servers_setup[message.guild.id]['Step1']:
+        global setup_prefix
+        setup_prefix = message.content
+        servers_setup[message.guild.id]['Step1'] = False
+        await message.channel.send("Now, mention the role you want to have admin rights")
+        servers_setup[message.guild.id]['Step2'] = True
+        return
+    if servers_setup[message.guild.id]['Step2']:
+        global setup_role
+        setup_role = message.content
+        servers_setup[message.guild.id]['Step2'] = False
+        await message.channel.send("Now, mention the channel where do you want the logs to go into")
+        servers_setup[message.guild.id]['Step3'] = True
+        return
+    if servers_setup[message.guild.id]['Step3']:
+        global setup_channel
+        setup_channel = message.content
+        servers_setup[message.guild.id]['Step3'] = False
+        servers_setup[message.guild.id]['Step4'] = True
+        await message.channel.send("Great, now I can take care of the rest!")
+        await changeprefix(message.channel, setup_prefix)
+        await changeadmin(message.channel, setup_role)
+        await changelogs(message.channel, setup_channel)
+        await message.channel.send("Everything was configured. Have a nice day")
+        servers_setup[message.guild.id]['Step4'] = False
+    await bot.process_commands(message)
 
 
 @bot.command(name='random', help="Responds with a random number beetween a and b")
@@ -140,13 +183,21 @@ async def create_channel(ctx, channel_category, channel_name):
         await logschannel.send(embed=logsembed)
 
 
-@bot.command(name="changeprefix", help="Choose the prefix for your server")
-async def changeprefix(ctx, prefix):
-    admin_role_id = get_adminrole(ctx)
-    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
-        await ctx.send("You are not an admin!")
+@bot.command(name="setup", help="Great to use when the bot first joins a server. Setup everything needed")
+@commands.has_permissions(administrator=True)
+async def start_setup(ctx):
+    if not ctx.author.id == 285084565469528064:
+        creator: User = await bot.fetch_user(285084565469528064)
+        await ctx.send(
+            f"This is a work in progress, therefore it can't be used except by my BEAUTIFUL creator {creator.display_name}")
         return
+    servers_setup[ctx.guild.id]['Step1'] = True
+    await ctx.send(f"Lets start, first write what you want the prefix for your server to be")
 
+
+@bot.command(name="changeprefix", help="Choose the prefix for your server")
+@commands.has_permissions(administrator=True)
+async def changeprefix(ctx, prefix):
     with open("prefixes.json", 'r') as f:
         prefixes = json.load(f)
 
@@ -156,7 +207,8 @@ async def changeprefix(ctx, prefix):
         json.dump(prefixes, f, indent=4)
 
     await ctx.send("Prefix changed to " + prefix)
-
+    if servers_setup[ctx.guild.id]['Step4']:
+        return
     fdate = date.today().strftime('%d/%m/%Y')
     now = datetime.now().strftime('%H:%M:%S')
 
@@ -174,7 +226,7 @@ async def changeprefix(ctx, prefix):
 
 @bot.command(name="changeadminrole", help="Choose the role that can execute admin commands")
 @commands.has_guild_permissions(administrator=True)
-async def changeadmin(ctx, *, role: Role):
+async def changeadmin(ctx, role: Role):
     with open("admins.json", 'r') as f:
         admins = json.load(f)
 
@@ -187,7 +239,8 @@ async def changeadmin(ctx, *, role: Role):
 
     fdate = date.today().strftime('%d/%m/%Y')
     now = datetime.now().strftime('%H:%M:%S')
-
+    if servers_setup[ctx.guild.id]['Step4']:
+        return
     logsembed = discord.Embed(
         title="Admin role changed",
         colour=discord.Color.red()
@@ -306,6 +359,11 @@ async def banmember(ctx, target: Member, reason='None'):
     await logschannel.send(embed=logsembed)
 
     await ctx.send(f"User {target} was kicked from the server")
+
+
+@bot.command(name="clear", help="cleans a certain ammount of messages in the channel")
+async def clear_messages(ctx, ammount: int):
+    await ctx.message.channel.purge(limit=ammount + 1)
 
 
 bot.run(TOKEN)
