@@ -5,6 +5,7 @@ from datetime import date
 from datetime import datetime
 
 import discord
+from discord import Guild
 from discord import Member
 from discord import Role
 from discord import TextChannel
@@ -17,10 +18,13 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 servers_setup = dict()
 setup_prefix = None
+# noinspection PyTypeChecker
 setup_role: Role = None
+# noinspection PyTypeChecker
 setup_channel: TextChannel = None
 
 
+# noinspection PyUnusedLocal
 def get_prefix(client, message):
     with open("prefixes.json", 'r') as f:
         prefixes = json.load(f)
@@ -41,6 +45,27 @@ def get_logschannel(message):
     return channel.id
 
 
+def get_announcementsvalue(message):
+    with open("announcements.json") as f:
+        guilds = json.load(f)
+    value: bool = guilds[str(message.guild.id)]
+    return value
+
+
+def get_globalannouncementsvalue(guild: Guild):
+    with open("announcements.json") as f:
+        guilds = json.load(f)
+    value: bool = guilds[str(guild.id)]
+    return value
+
+
+def get_globallogschannel(guild: Guild):
+    with open("logs.json") as f:
+        channels = json.load(f)
+    channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+    return channel.id
+
+
 bot = commands.Bot(command_prefix=get_prefix)
 
 
@@ -53,7 +78,7 @@ async def on_ready():
         servers_setup[guild.id]['Step1'] = False
         servers_setup[guild.id]['Step2'] = False
         servers_setup[guild.id]['Step3'] = False
-        print(servers_setup[guild.id])
+        servers_setup[guild.id]['Step4'] = False
 
 
 @bot.event
@@ -75,6 +100,19 @@ async def on_guild_join(guild):
     with open("admins.json", 'w') as f:
         json.dump(admins, f, indent=4)
 
+    with open("announcements.json") as f:
+        guilds = json.load(f)
+    guilds[str(guild.id)] = True
+
+    with open("announcements.json", 'w') as f:
+        json.dump(guilds, f, indent=4)
+
+    servers_setup[guild.id] = {}
+    servers_setup[guild.id]['Step1'] = False
+    servers_setup[guild.id]['Step2'] = False
+    servers_setup[guild.id]['Step3'] = False
+    servers_setup[guild.id]['Step4'] = False
+
 
 @bot.event
 async def on_guild_remove(guild):
@@ -94,12 +132,18 @@ async def on_guild_remove(guild):
     with open("admins.json", 'w') as f:
         json.dump(admins, f, indent=4)
 
+    # Logs' channel
     with open("logs.json") as f:
         channels = json.load(f)
     channels.pop(str(guild.id))
 
     with open("logs.json", 'w') as f:
         json.dump(channels, f, indent=4)
+
+    # Announcements
+    with open("announcements.json") as f:
+        guilds = json.load(f)
+    guilds.pop(str(guild.id))
 
 
 @bot.event
@@ -126,7 +170,9 @@ async def on_message(message):
         servers_setup[message.guild.id]['Step3'] = False
         servers_setup[message.guild.id]['Step4'] = True
         await message.channel.send("Great, now I can take care of the rest!")
+        # noinspection PyUnboundLocalVariable
         await changeprefix(message.channel, setup_prefix)
+        # noinspection PyUnboundLocalVariable
         await changeadmin(message.channel, setup_role)
         await changelogs(message.channel, setup_channel)
         await message.channel.send("Everything was configured. Have a nice day")
@@ -189,7 +235,8 @@ async def start_setup(ctx):
     if not ctx.author.id == 285084565469528064:
         creator: User = await bot.fetch_user(285084565469528064)
         await ctx.send(
-            f"This is a work in progress, therefore it can't be used except by my BEAUTIFUL creator {creator.display_name}")
+            f"This is a work in progress, therefore it can't be used except by my BEAUTIFUL creator "
+            f"{creator.display_name}")
         return
     servers_setup[ctx.guild.id]['Step1'] = True
     await ctx.send(f"Lets start, first write what you want the prefix for your server to be")
@@ -364,6 +411,48 @@ async def banmember(ctx, target: Member, reason='None'):
 @bot.command(name="clear", help="cleans a certain ammount of messages in the channel")
 async def clear_messages(ctx, ammount: int):
     await ctx.message.channel.purge(limit=ammount + 1)
+
+
+@bot.command(name="globalannoucement",
+             help="A command to make announcements in EVERY server the bot is in (Only used by bot's staff members)")
+async def global_announcement(ctx, message):
+    if not ctx.author.id == 285084565469528064:
+        creator: User = await bot.fetch_user(285084565469528064)
+        await ctx.send(
+            f"This is a bot's staff command only... You can't just use it dummy {creator.display_name}")
+        return
+    print(f"Global announcement started by {ctx.author.name}. Here comes the spaaaam")
+    for guild in bot.guilds:
+        if get_globalannouncementsvalue(guild):
+            logschannel = discord.utils.get(guild.text_channels, id=get_globallogschannel(guild))
+            await logschannel.send(message)
+            print(f"Global message sent to {guild.name} (id: {guild.id})")
+
+
+@bot.command(name="announcements",
+             help="Enable or disable bot's announcements in your logs' channel (It can be bots' updates or another "
+                  "fun thing... You never know)")
+async def set_globalannouncements(ctx):
+    admin_role_id = get_adminrole(ctx)
+    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
+        await ctx.send("You are not an admin!")
+        return
+    if get_announcementsvalue(ctx):
+        with open("announcements.json") as f:
+            guilds = json.load(f)
+        guilds[str(ctx.guild.id)] = False
+
+        with open("announcements.json", 'w') as f:
+            json.dump(guilds, f, indent=4)
+        return
+    if not get_announcementsvalue(ctx):
+        with open("announcements.json") as f:
+            guilds = json.load(f)
+        guilds[str(ctx.guild.id)] = True
+
+        with open("announcements.json", 'w') as f:
+            json.dump(guilds, f, indent=4)
+        return
 
 
 bot.run(TOKEN)
