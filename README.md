@@ -6,7 +6,7 @@ A discord bot with intent to get bigger
 - Custom prefix for each server
 - Collective admin role (give a certain role [customizable] to every person you want to have admin rights in the bot's eyes)
 - Logs system (kicks, bans and other features are reported to the logs channel [customizable])
-- Global announcements (These are made by the bot's staff steam. It is a message that is sent to every server the bot is in [this feature can be disabled by the user]. This message can contain updates and other stuff we might think that is relevant [These announcements are sent to the logs chahnel])
+- Global announcements (These are made by the bot's staff steam. It is a message that is sent to every server the bot is in [this feature can be disabled by the user]. This message can contain updates and other stuff we might think that is relevant [These announcements are sent to the logs channel])
 
 
 # Commands
