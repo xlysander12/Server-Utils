@@ -56,6 +56,7 @@ class Music(commands.Cog):
                     query_result = query_result + f'{i}) {track["info"]["title"]}\n'
                 embed = discord.Embed()
                 embed.description = query_result
+                embed.set_footer(text=f"Write down the number of the track you want")
 
                 await ctx.channel.send(embed=embed)
 
@@ -68,6 +69,9 @@ class Music(commands.Cog):
                 player.add(requester=ctx.author.id, track=track)
                 if not player.is_playing:
                     await player.play()
+                    await ctx.send(f"Started playing `{track['info']['title']}`")
+                    return
+                await ctx.send(f"Track `{track['info']['title']}` added to the queue")
             except Exception as error:
                 print(error)
 
@@ -79,10 +83,38 @@ class Music(commands.Cog):
             except Exception as error:
                 print(error)
 
+        if opt == "volume" and arg is not None:
+            try:
+                player = self.bot.music.player_manager.get(ctx.guild.id)
+                await player.set_volume(int(arg) * 10)
+            except Exception as error:
+                print(error)
+
+        if opt == "pause":
+            try:
+                player = self.bot.music.player_manager.get(ctx.guild.id)
+                await player.set_pause(True)
+                await ctx.send(f"Music paused!")
+            except Exception as error:
+                print(error)
+
+        if opt == "resume":
+            try:
+                player = self.bot.music.player_manager.get(ctx.guild.id)
+                await player.set_pause(False)
+                await ctx.send(f"Music resumed")
+            except Exception as error:
+                print(error)
+
         if opt == "leave":
             player = self.bot.music.player_manager.get(ctx.guild.id)
             if player.is_playing:
                 await player.stop()
+
+        if opt == "skip":
+            player = self.bot.music.player_manager.get(ctx.guild.id)
+            await player.skip()
+            await ctx.send(f"Track skipped")
 
     async def track_hook(self, event):
         if isinstance(event, lavalink.events.QueueEndEvent):

@@ -74,6 +74,27 @@ def get_musicchannel(guild: Guild):
     return channel.id
 
 
+def get_defrole(guild: Guild):
+    with open("defaultroles.json") as f:
+        defroles = json.load(f)
+    defrole: Role = discord.utils.get(guild.roles, id=defroles[str(guild.id)])
+    return defrole.id
+
+
+def get_autorole(guild: Guild):
+    with open("autorole.json") as f:
+        autovals = json.load(f)
+    autoval: bool = autovals[str(guild.id)]
+    return autoval
+
+
+def get_setup(guild: Guild):
+    with open("has_setup.json") as f:
+        guilds = json.load(f)
+    val = guilds[str(guild.id)]
+    return val
+
+
 def has_logs_channel(guild: Guild):
     with open("logs.json") as f:
         channels = json.load(f)
@@ -117,6 +138,24 @@ def set_logschannel(guild: Guild, *, channel: TextChannel):
         json.dump(channels, f, indent=4)
 
 
+def set_defrole(guild: Guild, *, role: Role):
+    with open("defaultroles.json") as f:
+        defroles = json.load(f)
+    defroles[str(guild.id)] = role.id
+
+    with open("defaultroles.json", 'w') as f:
+        json.dump(defroles, f, indent=4)
+
+
+def set_autorole(guild: Guild, val: bool):
+    with open("autorole.json") as f:
+        autovals = json.load(f)
+    autovals[str(guild.id)] = val
+
+    with open("autorole.json", 'w') as f:
+        json.dump(autovals, f, indent=4)
+
+
 def set_musicchannel(guild: Guild, *, channel: TextChannel):
     with open("cogs/music.json") as f:
         channels = json.load(f)
@@ -130,9 +169,9 @@ def set_announcements(guild: Guild, value: str):
     with open("announcements.json") as f:
         guilds = json.load(f)
 
-    if str == 'yes':
+    if value == 'yes':
         guilds[str(guild.id)] = True
-    elif str == 'no':
+    elif value == 'no':
         guilds[str(guild.id)] = False
     else:
         return
@@ -141,7 +180,20 @@ def set_announcements(guild: Guild, value: str):
         json.dump(guilds, f, indent=4)
 
 
+def set_setup(guild: Guild, value: bool):
+    with open("has_setup.json") as f:
+        guilds = json.load(f)
+    if value:
+        guilds[str(guild.id)] = True
+    if not value:
+        guilds[str(guild.id)] = False
+
+    with open("has_setup.json", 'w') as f:
+        json.dump(guilds, f, indent=4)
+
+
 bot = commands.Bot(command_prefix=get_prefixbot)
+bot.remove_command('help')
 
 
 @bot.event
@@ -184,6 +236,22 @@ async def on_guild_join(guild):
 
     with open("announcements.json", 'w') as f:
         json.dump(guilds, f, indent=4)
+
+    # Auto Role
+    with open("autorole.json") as f:
+        autovals = json.load(f)
+    autovals[str(guild.id)] = False
+
+    with open("autorole.json", 'w') as f:
+        json.dump(autovals, f, indent=4)
+
+    # Setup check
+    with open("has_setup.json") as f:
+        setupvals = json.load(f)
+    setupvals[str(guild.id)] = False
+
+    with open("has_setup.json", 'w') as f:
+        json.dump(setupvals, f, indent=4)
 
     # Messaging server owner
     embed = discord.Embed(title="Hey, looks like I'm in your server!",
@@ -251,7 +319,26 @@ async def on_guild_remove(guild):
         guilds = json.load(f)
     guilds.pop(str(guild.id))
 
-    # changing presence
+    with open("announcements.json", 'w') as f:
+        json.dump(guilds, f, indent=4)
+
+    # Auto role
+    with open("autorole.json") as f:
+        autovals = json.load(f)
+    autovals.pop(str(guild.id))
+
+    with open("autorole.json", 'w') as f:
+        json.dump(autovals, f, indent=4)
+
+    # Setup check
+    with open("has_setup.json") as f:
+        setupvals = json.load(f)
+    setupvals[str(guild.id)] = False
+
+    with open("has_setup.json", 'w') as f:
+        json.dump(setupvals, f, indent=4)
+
+    # Changing presence
     global servers
     servers = servers - 1
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
@@ -259,9 +346,28 @@ async def on_guild_remove(guild):
 
 
 @bot.event
+async def on_member_join(member):
+    autovalue = get_autorole(member.guild)
+    if not autovalue:
+        return
+    defroleid = get_defrole(member.guild)
+    defrole = discord.utils.get(member.guild.roles, id=defroleid)
+    await member.add_roles(defrole)
+
+
+@bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
+
+    if message.content.startswith(get_prefix(message.channel.guild)):
+        if not message.content == "!setup":
+            setupval = get_setup(message.channel.guild)
+            if not setupval:
+                await message.channel.send(
+                    f"You can't use commands before running the `{get_prefix(message.channel.guild)}setup` command!")
+                return
+
     await bot.process_commands(message)
 
 
@@ -367,6 +473,7 @@ async def start_setup(ctx):
     if announcements.content == 'no':
         await ctx.send(f"Global announcements are now disabled")
 
+    set_setup(ctx.guild, True)
     await ctx.send(
         f"Configuration finished. Remember you can re-configure anything it by using `{get_prefix(ctx.message.guild)}setup` again or using the respective commands")
 
@@ -395,8 +502,8 @@ async def start_setup(ctx, prefix: str = None, adminrole: Role = None, logschann
     else:
         await ctx.send(f"Invalid option in announcements field... Keeping default...")
 
-    await ctx.send(
-        f"Configuration finished. You can always change the values by using `{get_prefix(ctx.message.guild)}setup` or using the respective commands")"""
+    await ctx.send( f"Configuration finished. You can always change the values by using `{get_prefix(
+    ctx.message.guild)}setup` or using the respective commands") """
 
 
 @bot.command(name="changeprefix", help="Choose the prefix for your server")
@@ -410,7 +517,7 @@ async def changeprefix(ctx, prefix):
     with open("prefixes.json", 'w') as f:
         json.dump(prefixes, f, indent=4)
 
-    await ctx.send("Prefix changed to " + prefix)
+    await ctx.send(f"Prefix changed to `{prefix}`")
 
     fdate = date.today().strftime('%d/%m/%Y')
     now = datetime.now().strftime('%H:%M:%S')
@@ -421,7 +528,7 @@ async def changeprefix(ctx, prefix):
     )
 
     logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
-    logsembed.add_field(name="Prefix changed to", value=f'"{prefix}"', inline=True)
+    logsembed.add_field(name="Prefix changed to", value=f'{prefix}', inline=True)
 
     logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
     await logschannel.send(embed=logsembed)
@@ -474,7 +581,7 @@ async def changelogs(ctx, channel: TextChannel):
 
 
 @bot.command(name="changemusicchannel", help="Choose in which channel will be used to execute music commands")
-async def changelogs(ctx, channel: TextChannel):
+async def changemusic(ctx, channel: TextChannel):
     admin_role_id = get_adminrole(ctx)
     if ctx.author not in ctx.guild.get_role(admin_role_id).members:
         await ctx.send("You are not an admin!")
@@ -489,6 +596,29 @@ async def changelogs(ctx, channel: TextChannel):
         json.dump(channels, f, indent=4)
 
     await ctx.send(f"Music channel changed to {channel.mention}")
+
+
+@bot.command(name="autorole", help="Enables/Disables auto role feature")
+async def autorole(ctx):
+    value = get_autorole(ctx.guild)
+
+    def check(m):
+        return m.author.id == ctx.author.id
+
+    if not value:
+        set_autorole(ctx.guild, True)
+        await ctx.send(f"Auto role feature is now ENABLED. Mention the role you want to give by default")
+        role: Message = await bot.wait_for("message", check=check)
+        rolecontent = role.content
+        roleid = rolecontent.replace("<", "").replace("@", "").replace("&", "").replace(">", "")
+        introleid = int(roleid)
+        actualrole = discord.utils.get(ctx.guild.roles, id=introleid)
+        set_defrole(ctx.guild, role=actualrole)
+        return await ctx.send(f"Default role changed to {actualrole.mention}.")
+
+    if value:
+        set_autorole(ctx.guild, False)
+        return await ctx.send(f"Auto role feature is now DISABLED")
 
 
 @bot.command(name="kick", help="Kicks a member from the server")
@@ -523,15 +653,20 @@ async def kickmember(ctx, target: Member, *, reason="None"):
     # f"Kicked by: {ctx.message.author.name}\n"
     # f"Consider this as an warning... You can re-enter the server here: {invite}")
 
-    await channel.send(embed=clientembed)
-    await target.kick(reason=reason)
+    pm = await channel.send(embed=clientembed)
+
+    try:
+        await target.kick(reason=reason)
+    except discord.errors.Forbidden:
+        await ctx.send(f"I don't have enough power to kick that person")
+        return await pm.delete()
 
     logsembed = discord.Embed(
         title="A member has been kicked",
         colour=discord.Color.orange()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}", icon_url=ctx.message.author.avatar_url)
     logsembed.add_field(name="Kicked member", value=target.mention, inline=True)
     logsembed.add_field(name="Reason", value=reason, inline=True)
 
@@ -562,21 +697,24 @@ async def banmember(ctx, target: Member, reason='None'):
     clientembed.add_field(name='Reason of the ban', value=reason, inline=True)
     clientembed.add_field(name="You were banned by", value=ctx.message.author.name, inline=True)
 
-    await channel.send(embed=clientembed)
-    await target.ban(reason=reason)
-    await ctx.send(f"User {target} was banned from the server")
-
+    pm = await channel.send(embed=clientembed)
+    try:
+        await target.ban(reason=reason)
+    except discord.errors.Forbidden:
+        await ctx.send(f"I don't have enough power to kick that person")
+        return await pm.delete()
     logsembed = discord.Embed(
         title="A member has been BANNED",
         colour=discord.Color.orange()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}", icon_url=ctx.author.avatar_url)
     logsembed.add_field(name="Banned member", value=target.mention, inline=True)
     logsembed.add_field(name="Reason", value=reason, inline=True)
 
     logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
     await logschannel.send(embed=logsembed)
+    await ctx.send(f"User {target} was banned from the server")
 
 
 @bot.command(name="clear", help="cleans a certain ammount of messages in the channel")
@@ -598,6 +736,83 @@ async def global_announcement(ctx, *, message):
             logschannel = discord.utils.get(guild.text_channels, id=get_globallogschannel(guild))
             await logschannel.send(message)
             print(f"Global message sent to {guild.name} (id: {guild.id})")
+
+
+@bot.command(name="help")
+async def helpcommand(ctx, page: int = 0):
+    if page == 0:
+        helpembed0 = discord.Embed(title='Help Menu', description='Choose one of the categories',
+                                   colour=discord.Color.dark_green())
+        helpembed0.set_footer(text="Categories")
+        helpembed0.add_field(name="User commands", value=f"{get_prefix(ctx.guild)}help 1", inline=False)
+
+        helpembed0.add_field(name='Music Commands', value=f"{get_prefix(ctx.guild)}help 2", inline=False)
+
+        helpembed0.add_field(name='Admin Commands', value=f"{get_prefix(ctx.guild)}help 3", inline=False)
+        await ctx.send(embed=helpembed0)
+
+    if page == 1:
+        helpembed1 = discord.Embed(title='Help Menu', description="These are the commands Users can use",
+                                   colour=discord.Color.blue())
+        helpembed1.set_footer(text="User commands")
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}random <a> <b>",
+                             value=f"Retrieves a random number between a and b.", inline=False)
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}roll-dice <num of dice> <num of faces>",
+                             value=f"Simulates dice throwing.", inline=False)
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}help [page]", value=f"Displays the help message",
+                             inline=False)
+
+        await ctx.send(embed=helpembed1)
+
+    if page == 2:
+        helpembed2 = discord.Embed(title="Help Menu", description="These are the music related commands",
+                                   colour=discord.Color.purple())
+        helpembed2.set_footer(text="Music commands")
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music join", value="Makes the bot join the channel where "
+                                                                              "you are", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music play <music>",
+                             value="Plays specified music (adds to queue if another music is playing)", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music pause", value="Pauses the current music", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music resume", value="Resumes the current music",
+                             inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music stop", value="Stops the music", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music skip",
+                             value="Skip to the next music in queue, if none the bot disconnects", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music volume <volume>",
+                             value="Changes the volume of the music (Recomended: 10%)", inline=False)
+
+        await ctx.send(embed=helpembed2)
+
+    if page == 3:
+        helpembed3 = discord.Embed(title="Help Menu", description="These are the commands server admins can use",
+                                   colour=discord.Color.red())
+        helpembed3.set_footer(text="Admin commands")
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}announcements <yes/no>",
+                             value="Enables or disables global announcements in your server", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}autorole", value="Enables or disables the autorole function",
+                             inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}ban <member> [reason]", value="Bans specified member",
+                             inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}changeadminrole <role>",
+                             value="Changes the role that has admin privileges in the bot's eyes", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}changelogschannel <channel>",
+                             value="Changes the channel to where the bot's logs go into", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}changemusicchannel <channel>",
+                             value="Changes the channel where music commands are allowed", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}changeprefix <prefix>",
+                             value="Changes the prefix to use in the server", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}clear <num of msgs>",
+                             value="Clears the specified number of messages in the chat", inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}create-channel <name> <category>",
+                             value="Creates a text channel with the specified name in the specified category",
+                             inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}kick <member> [reason]", value="Kicks specified member",
+                             inline=False)
+        helpembed3.add_field(name=f"{get_prefix(ctx.guild)}setup",
+                             value="First command to execute when bot joins the server. Configures everything that is needed",
+                             inline=False)
+
+        await ctx.send(embed=helpembed3)
 
 
 @bot.command(name="announcements",
