@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+servers = 0
 
 
 # noinspection PyUnusedLocal
@@ -66,6 +67,25 @@ def get_globallogschannel(guild: Guild):
     return channel.id
 
 
+def get_musicchannel(guild: Guild):
+    with open("cogs/music.json") as f:
+        channels = json.load(f)
+    channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+    return channel.id
+
+
+def has_logs_channel(guild: Guild):
+    with open("logs.json") as f:
+        channels = json.load(f)
+    try:
+        if channels[str(guild.id)]:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+
+
 # set funcions
 def set_prefix(guild: Guild, prefix):
     with open("prefixes.json") as f:
@@ -97,6 +117,15 @@ def set_logschannel(guild: Guild, *, channel: TextChannel):
         json.dump(channels, f, indent=4)
 
 
+def set_musicchannel(guild: Guild, *, channel: TextChannel):
+    with open("cogs/music.json") as f:
+        channels = json.load(f)
+    channels[str(guild.id)] = channel.id
+
+    with open("cogs/music.json", 'w') as f:
+        json.dump(channels, f, indent=4)
+
+
 def set_announcements(guild: Guild, value: str):
     with open("announcements.json") as f:
         guilds = json.load(f)
@@ -122,8 +151,10 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"{guild.name} (id: {guild.id})")
         i = i + 1
+        global servers
+        servers = i
     print(f"Bot is connected to {i} guilds")
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{i} servers"))
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
     bot.load_extension('cogs.music')
 
 
@@ -146,12 +177,44 @@ async def on_guild_join(guild):
     with open("admins.json", 'w') as f:
         json.dump(admins, f, indent=4)
 
+    # Global announcements
     with open("announcements.json") as f:
         guilds = json.load(f)
     guilds[str(guild.id)] = True
 
     with open("announcements.json", 'w') as f:
         json.dump(guilds, f, indent=4)
+
+    # Messaging server owner
+    embed = discord.Embed(title="Hey, looks like I'm in your server!",
+                          description="You're receiving this message because I entered your discord server. I know we "
+                                      "will have a ball together!",
+                          colour=discord.Colour.green(),
+                          inline=False)
+    embed.add_field(name="Setup command",
+                    value="The setup command is the best way to start our journey. Hop in a private channel in your "
+                          "discord server and use it!")
+    embed.add_field(name="See the github page",
+                    value="I have a github repository with all my code in it. Don't worry, even if you don't know "
+                          "anything abount coding there's the documentation there too! If you have any problem or "
+                          "want to add a suggestion just open an issue there.",
+                    inline=False)
+    embed.add_field(name="Link", value="https://github.com/xlysander12/Server-Utils", inline=True)
+
+    embed.set_footer(text=bot.user.display_name)
+    embed.set_thumbnail(url=bot.user.avatar_url)
+
+    owner = guild.owner
+
+    channel = await owner.create_dm()
+    await channel.send(embed=embed)
+
+    # Changing the presence
+    global servers
+    servers = servers + 1
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
+
+    print(f"The bot was added to the guild {guild.name} (id: {guild.id})")
 
 
 @bot.event
@@ -173,17 +236,26 @@ async def on_guild_remove(guild):
         json.dump(admins, f, indent=4)
 
     # Logs' channel
-    with open("logs.json") as f:
-        channels = json.load(f)
-    channels.pop(str(guild.id))
 
-    with open("logs.json", 'w') as f:
-        json.dump(channels, f, indent=4)
+    haslogs = has_logs_channel(guild)
+    if haslogs:
+        with open("logs.json") as f:
+            channels = json.load(f)
+        channels.pop(str(guild.id))
+
+        with open("logs.json", 'w') as f:
+            json.dump(channels, f, indent=4)
 
     # Announcements
     with open("announcements.json") as f:
         guilds = json.load(f)
     guilds.pop(str(guild.id))
+
+    # changing presence
+    global servers
+    servers = servers - 1
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
+    print(f"The bot was removed from the guild {guild.name} (id: {guild.id})")
 
 
 @bot.event
@@ -277,6 +349,15 @@ async def start_setup(ctx):
     actual_logsc = discord.utils.get(ctx.guild.text_channels, id=int(logs_id))
     set_logschannel(ctx.message.guild, channel=actual_logsc)
     await ctx.send(f"Logs channel changed to {actual_logsc.mention}... Let's keep going")
+
+    await ctx.send(f"Now, mention the channel you want to be used for music commands")
+    musicc: Message = await bot.wait_for("message", check=check)
+    musicc_content = musicc.content
+    musicc_id = musicc_content.replace("<", "").replace("#", "").replace("#", "").replace(">", "")
+
+    actual_musicc = discord.utils.get(ctx.guild.text_channels, id=int(musicc_id))
+    set_musicchannel(ctx.message.guild, channel=actual_musicc)
+    await ctx.send(f"Music channel changed to {actual_musicc.mention}... Let's keep going")
 
     await ctx.send(f"Do you want to receive announcements about this bot's updates or other stuff? (yes / no)")
     announcements = await bot.wait_for("message", check=check)
@@ -390,6 +471,24 @@ async def changelogs(ctx, channel: TextChannel):
         json.dump(channels, f, indent=4)
 
     await ctx.send(f"Logs channel changed to {channel.mention}")
+
+
+@bot.command(name="changemusicchannel", help="Choose in which channel will be used to execute music commands")
+async def changelogs(ctx, channel: TextChannel):
+    admin_role_id = get_adminrole(ctx)
+    if ctx.author not in ctx.guild.get_role(admin_role_id).members:
+        await ctx.send("You are not an admin!")
+        return
+
+    with open("cogs/music.json") as f:
+        channels = json.load(f)
+
+    channels[str(ctx.guild.id)] = channel.id
+
+    with open("cogs/music.json", 'w') as f:
+        json.dump(channels, f, indent=4)
+
+    await ctx.send(f"Music channel changed to {channel.mention}")
 
 
 @bot.command(name="kick", help="Kicks a member from the server")

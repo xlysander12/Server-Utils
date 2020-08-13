@@ -1,20 +1,34 @@
+import json
+
 import discord
 import lavalink
+from discord import Guild
+from discord import TextChannel
 from discord.ext import commands
+
+
+def get_musicchannel(guild: Guild):
+    with open("cogs/music.json") as f:
+        channels = json.load(f)
+    channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+    return channel.id
 
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.music = lavalink.Client(self.bot.user.id)
-        self.bot.music.add_node("localhost", 7000, 'server-utils', 'eu', 'music-node')
+        self.bot.music.add_node("lavalink-server-ultis.herokuapp.com", 80, 'youshallnotpass', 'eu', 'music-node')
         self.bot.add_listener(self.bot.music.voice_update_handler, 'on_socket_response')
         self.bot.music.add_event_hook(self.track_hook)
 
     @commands.command(name="music")
     async def music(self, ctx, opt, *, arg=None):
+        if ctx.message.channel.id != get_musicchannel(ctx.guild):
+            channel = get_musicchannel(ctx.guild)
+            actual_channel = discord.utils.get(ctx.guild.text_channels, id=get_musicchannel(ctx.guild))
+            return await ctx.send(f"Music commands can only be used in the music channel ({actual_channel.mention})")
         if opt == "join":
-            print(f"music join command worked")
             member = discord.utils.find(lambda m: m.id == ctx.author.id, ctx.guild.members)
             if member is not None and member.voice is not None:
                 vc = member.voice.channel
@@ -24,6 +38,13 @@ class Music(commands.Cog):
                     await self.connect_to(ctx.guild.id, str(vc.id))
         if opt == "play" and arg is not None:
             try:
+                member = discord.utils.find(lambda m: m.id == ctx.author.id, ctx.guild.members)
+                if member is not None and member.voice is not None:
+                    vc = member.voice.channel
+                    player = self.bot.music.player_manager.create(ctx.guild.id, endpoint=str(ctx.guild.region))
+                    if not player.is_connected:
+                        player.store('channel', ctx.guild.id)
+                        await self.connect_to(ctx.guild.id, str(vc.id))
                 player = self.bot.music.player_manager.get(ctx.guild.id)
                 query = f'ytsearch:{arg}'
                 results = await player.node.get_tracks(query)
@@ -62,7 +83,6 @@ class Music(commands.Cog):
             player = self.bot.music.player_manager.get(ctx.guild.id)
             if player.is_playing:
                 await player.stop()
-            await self.disconnect_from(ctx.guild.id)
 
     async def track_hook(self, event):
         if isinstance(event, lavalink.events.QueueEndEvent):
