@@ -1,3 +1,4 @@
+lavalink
 dotenv
 discord
 datetime

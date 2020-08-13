@@ -7,6 +7,7 @@ from datetime import datetime
 import discord
 from discord import Guild
 from discord import Member
+from discord import Message
 from discord import Role
 from discord import TextChannel
 from discord import User
@@ -16,19 +17,18 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-servers_setup = dict()
-setup_prefix = None
-# noinspection PyTypeChecker
-setup_role: Role = None
-# noinspection PyTypeChecker
-setup_channel: TextChannel = None
-
 
 # noinspection PyUnusedLocal
-def get_prefix(client, message):
+def get_prefixbot(client, message):
     with open("prefixes.json", 'r') as f:
         prefixes = json.load(f)
     return prefixes[str(message.guild.id)]
+
+
+def get_prefix(guild: Guild):
+    with open("prefixes.json", 'r') as f:
+        prefixes = json.load(f)
+    return prefixes[str(guild.id)]
 
 
 def get_adminrole(message):
@@ -66,19 +66,65 @@ def get_globallogschannel(guild: Guild):
     return channel.id
 
 
-bot = commands.Bot(command_prefix=get_prefix)
+# set funcions
+def set_prefix(guild: Guild, prefix):
+    with open("prefixes.json") as f:
+        prefixes = json.load(f)
+
+    prefixes[str(guild.id)] = prefix
+
+    with open("prefixes.json", 'w') as f:
+        json.dump(prefixes, f, indent=4)
+
+
+def set_adminrole(guild: Guild, *, role: Role):
+    with open("admins.json") as f:
+        roles = json.load(f)
+
+    roles[str(guild.id)] = role.id
+
+    with open("admins.json", 'w') as f:
+        json.dump(roles, f, indent=4)
+
+
+def set_logschannel(guild: Guild, *, channel: TextChannel):
+    with open("logs.json") as f:
+        channels = json.load(f)
+
+    channels[str(guild.id)] = channel.id
+
+    with open("logs.json", 'w') as f:
+        json.dump(channels, f, indent=4)
+
+
+def set_announcements(guild: Guild, value: str):
+    with open("announcements.json") as f:
+        guilds = json.load(f)
+
+    if str == 'yes':
+        guilds[str(guild.id)] = True
+    elif str == 'no':
+        guilds[str(guild.id)] = False
+    else:
+        return
+
+    with open("announcements.json", 'w') as f:
+        json.dump(guilds, f, indent=4)
+
+
+bot = commands.Bot(command_prefix=get_prefixbot)
 
 
 @bot.event
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
+    i = 0
     for guild in bot.guilds:
         print(f"{guild.name} (id: {guild.id})")
-        servers_setup[guild.id] = {}
-        servers_setup[guild.id]['Step1'] = False
-        servers_setup[guild.id]['Step2'] = False
-        servers_setup[guild.id]['Step3'] = False
-        servers_setup[guild.id]['Step4'] = False
+        i = i + 1
+    print(f"Bot is connected to {i} guilds")
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{i} servers"))
+    bot.load_extension('cogs.music')
 
 
 @bot.event
@@ -106,12 +152,6 @@ async def on_guild_join(guild):
 
     with open("announcements.json", 'w') as f:
         json.dump(guilds, f, indent=4)
-
-    servers_setup[guild.id] = {}
-    servers_setup[guild.id]['Step1'] = False
-    servers_setup[guild.id]['Step2'] = False
-    servers_setup[guild.id]['Step3'] = False
-    servers_setup[guild.id]['Step4'] = False
 
 
 @bot.event
@@ -150,39 +190,12 @@ async def on_guild_remove(guild):
 async def on_message(message):
     if message.author == bot.user:
         return
-    if servers_setup[message.guild.id]['Step1']:
-        global setup_prefix
-        setup_prefix = message.content
-        servers_setup[message.guild.id]['Step1'] = False
-        await message.channel.send("Now, mention the role you want to have admin rights")
-        servers_setup[message.guild.id]['Step2'] = True
-        return
-    if servers_setup[message.guild.id]['Step2']:
-        global setup_role
-        setup_role = message.content
-        servers_setup[message.guild.id]['Step2'] = False
-        await message.channel.send("Now, mention the channel where do you want the logs to go into")
-        servers_setup[message.guild.id]['Step3'] = True
-        return
-    if servers_setup[message.guild.id]['Step3']:
-        global setup_channel
-        setup_channel = message.content
-        servers_setup[message.guild.id]['Step3'] = False
-        servers_setup[message.guild.id]['Step4'] = True
-        await message.channel.send("Great, now I can take care of the rest!")
-        # noinspection PyUnboundLocalVariable
-        await changeprefix(message.channel, setup_prefix)
-        # noinspection PyUnboundLocalVariable
-        await changeadmin(message.channel, setup_role)
-        await changelogs(message.channel, setup_channel)
-        await message.channel.send("Everything was configured. Have a nice day")
-        servers_setup[message.guild.id]['Step4'] = False
     await bot.process_commands(message)
 
 
 @bot.command(name='random', help="Responds with a random number beetween a and b")
-async def nine_nine(ctx):
-    response = random.randint(0, 100)
+async def random_command(ctx, a, b):
+    response = random.randint(int(a), int(b))
     await ctx.send(response)
 
 
@@ -232,14 +245,77 @@ async def create_channel(ctx, channel_category, channel_name):
 @bot.command(name="setup", help="Great to use when the bot first joins a server. Setup everything needed")
 @commands.has_permissions(administrator=True)
 async def start_setup(ctx):
-    if not ctx.author.id == 285084565469528064:
+    """if not ctx.author.id == 285084565469528064:
         creator: User = await bot.fetch_user(285084565469528064)
         await ctx.send(
             f"This is a work in progress, therefore it can't be used except by my BEAUTIFUL creator "
             f"{creator.display_name}")
+        return"""
+    await ctx.send(f"Lets start the setup... First write what you want the prefix for your server to be")
+
+    def check(m):
+        return m.author.id == ctx.author.id
+
+    prefix: Message = await bot.wait_for("message", check=check)
+    set_prefix(ctx.message.guild, prefix.content)
+    await ctx.send(f"Prefix changed to {prefix.content}... Let's keep going")
+
+    await ctx.send(f"Now, mention the role you want it to be the admin role")
+    role: Message = await bot.wait_for("message", check=check)
+    rolecontent = role.content
+    roleid = rolecontent.replace("<", "").replace("@", "").replace("&", "").replace(">", "")
+    introleid = int(roleid)
+    actualrole = discord.utils.get(ctx.guild.roles, id=introleid)
+    set_adminrole(ctx.message.guild, role=actualrole)
+    await ctx.send(f"Admin role changed to {actualrole.mention}... Let's keep going")
+
+    await ctx.send(f"Now, mention the channel you want to the logs to go to")
+    logsc: Message = await bot.wait_for("message", check=check)
+    logsc_content = logsc.content
+    logs_id = logsc_content.replace("<", "").replace("#", "").replace("#", "").replace(">", "")
+
+    actual_logsc = discord.utils.get(ctx.guild.text_channels, id=int(logs_id))
+    set_logschannel(ctx.message.guild, channel=actual_logsc)
+    await ctx.send(f"Logs channel changed to {actual_logsc.mention}... Let's keep going")
+
+    await ctx.send(f"Do you want to receive announcements about this bot's updates or other stuff? (yes / no)")
+    announcements = await bot.wait_for("message", check=check)
+    set_announcements(ctx.message.guild, announcements)
+    if announcements.content == 'yes':
+        await ctx.send(f"Global announcements are now enabled")
+    if announcements.content == 'no':
+        await ctx.send(f"Global announcements are now disabled")
+
+    await ctx.send(
+        f"Configuration finished. Remember you can re-configure anything it by using `{get_prefix(ctx.message.guild)}setup` again or using the respective commands")
+
+
+"""@bot.command(name="setup", help="Great to use when the bot first joins a server. Setup everything needed")
+@commands.has_permissions(administrator=True)
+async def start_setup(ctx, prefix: str = None, adminrole: Role = None, logschannel: TextChannel = None,
+                      announcements: str = 'yes'):
+    if not prefix or not adminrole or not logschannel:
+        await ctx.send(f"Please specify all needed arguments")
         return
-    servers_setup[ctx.guild.id]['Step1'] = True
-    await ctx.send(f"Lets start, first write what you want the prefix for your server to be")
+    set_prefix(ctx.message.guild, prefix)
+    await ctx.send(f"Prefix changed to {prefix}... Moving...")
+
+    set_adminrole(ctx.message.guild, role=adminrole)
+    await ctx.send(f"Admin role changed to {adminrole.mention}... Moving...")
+
+    set_logschannel(ctx.message.guild, channel=logschannel)
+    await ctx.send(f"Logs channel changed to {logschannel.mention}... Moving...")
+
+    set_announcements(ctx.message.guild, announcements)
+    if announcements == 'yes':
+        await ctx.send(f"Global announcements are now ENABLED")
+    elif announcements == 'no':
+        await ctx.send(f"Global announcements are now DISABLED")
+    else:
+        await ctx.send(f"Invalid option in announcements field... Keeping default...")
+
+    await ctx.send(
+        f"Configuration finished. You can always change the values by using `{get_prefix(ctx.message.guild)}setup` or using the respective commands")"""
 
 
 @bot.command(name="changeprefix", help="Choose the prefix for your server")
@@ -254,8 +330,7 @@ async def changeprefix(ctx, prefix):
         json.dump(prefixes, f, indent=4)
 
     await ctx.send("Prefix changed to " + prefix)
-    if servers_setup[ctx.guild.id]['Step4']:
-        return
+
     fdate = date.today().strftime('%d/%m/%Y')
     now = datetime.now().strftime('%H:%M:%S')
 
@@ -286,8 +361,7 @@ async def changeadmin(ctx, role: Role):
 
     fdate = date.today().strftime('%d/%m/%Y')
     now = datetime.now().strftime('%H:%M:%S')
-    if servers_setup[ctx.guild.id]['Step4']:
-        return
+
     logsembed = discord.Embed(
         title="Admin role changed",
         colour=discord.Color.red()
@@ -405,21 +479,19 @@ async def banmember(ctx, target: Member, reason='None'):
     logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
     await logschannel.send(embed=logsembed)
 
-    await ctx.send(f"User {target} was kicked from the server")
-
 
 @bot.command(name="clear", help="cleans a certain ammount of messages in the channel")
 async def clear_messages(ctx, ammount: int):
     await ctx.message.channel.purge(limit=ammount + 1)
 
 
-@bot.command(name="globalannoucement",
+@bot.command(name="globalannouncement",
              help="A command to make announcements in EVERY server the bot is in (Only used by bot's staff members)")
-async def global_announcement(ctx, message):
+async def global_announcement(ctx, *, message):
     if not ctx.author.id == 285084565469528064:
         creator: User = await bot.fetch_user(285084565469528064)
         await ctx.send(
-            f"This is a bot's staff command only... You can't just use it dummy {creator.display_name}")
+            f"This is a bot's staff command only... You can't just use it dummy")
         return
     print(f"Global announcement started by {ctx.author.name}. Here comes the spaaaam")
     for guild in bot.guilds:
