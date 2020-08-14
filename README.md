@@ -14,7 +14,7 @@ A discord bot with intent to get bigger
   - announcements [yes / no]:
     - Enables or disables the global announcements feature in your server.
     
-  - autole:
+  - autorole:
     - Enables or disables the automatic role feature.
     
     
@@ -54,6 +54,12 @@ A discord bot with intent to get bigger
     - Retrieves a random number between a and b.
   - roll-dice [number of dice] [number of faces]:
     - Retrieves the output of what it would be to roll specified number of dice with specified ammount of faces each.
+  - color-pick [color]:
+    - Randomizes one color, if user gets the color right it wins... nothing
+  - server:
+    - Gets information about the server
+  - info [user]:
+    - Gets information about the specified user
   - help [page]:
     - Shows the help menu.
     
