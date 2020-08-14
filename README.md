@@ -2,7 +2,7 @@
 A discord bot with intent to get bigger
 
 
-# Functions
+# Features
 - Custom prefix for each server
 - Collective admin role (give a certain role [customizable] to every person you want to have admin rights in the bot's eyes)
 - Logs system (kicks, bans and other features are reported to the logs channel [customizable])
