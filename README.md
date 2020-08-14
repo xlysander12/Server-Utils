@@ -14,6 +14,9 @@ A discord bot with intent to get bigger
   - announcements [yes / no]:
     - Enables or disables the global announcements feature in your server.
     
+  - autole:
+    - Enables or disables the automatic role feature.
+    
     
   - ban [member] [reason]:
     - Bans the mentioned member. This ban is registered in the logs channel and a pm is sent to the target by the bot informing that was banned.
@@ -39,11 +42,11 @@ A discord bot with intent to get bigger
     - Creates a text channel (for now voice channels aren't available) with the specified name and in the specified category [if category doesn't exist, it creates it]).
     
     
-  - kick [member] [reason]
+  - kick [member] [reason]:
     - Kicks the mentioned member. This kick is registered in the logs channel and a pm in sent to the target by the bot informing that was kicked with a new invite to join back if he wants.
     
     
-  - setup
+  - setup:
     - The perfect command to use when the bot is invited to a new server. This command allows you to configure prefix, admin role, logs channel and if you want global announcements in your server.
     
 - User commands (Add a suggestion if you want more):
@@ -51,14 +54,24 @@ A discord bot with intent to get bigger
     - Retrieves a random number between a and b.
   - roll-dice [number of dice] [number of faces]:
     - Retrieves the output of what it would be to roll specified number of dice with specified ammount of faces each.
+  - help [page]:
+    - Shows the help menu.
     
-- Music commands (can be executed by everyone):
+- Music commands (Can be executed by everyone):
   - music join:
-    - Makes the bot join the channel where the member that executed the channel is connected to (for now this command is obrigatory before start playing a music).
+    - Makes the bot join the channel where the member that executed the channel is connected to.
   - music play [music]:
-    - Searches the music specified, then the bot returns with a list of the 10 first results of that term in youtube. You can select which one you want by simply writing the respective number (for now, music join must be executed before start playing a music).
+    - Searches the specified music, then the bot returns with a list of the 10 first results of that term in youtube. You can select which one you want by simply writing the respective number.
+  - music pause:
+    - Pauses the current music playing.
+  - music resume:
+    - Resumes the current music if paused.
+  - music skip
+    - Skips the current music and starts playing the next one in queue. If there's no next music in queue, the bot disconnects from the channel.
   - music stop:
     - Stops the current music.
+  - music volume:
+    - Changes the volume of the music (Value of 10% is recomended to not cause hearing issues and not to lose sound quality).
     
 # Conclusion
 If you find any bug or want to add a suggestion feel free to open an issue.\
