@@ -1,10 +1,10 @@
 import json
 import os
 import random
-import urllib
 from datetime import datetime
 
 import discord
+import requests
 from discord import Guild
 from discord import Member
 from discord import Message
@@ -792,7 +792,7 @@ async def memberinfo(ctx, member: Member):
 @bot.command(name="globalannouncement",
              help="A command to make announcements in EVERY server the bot is in (Only used by bot's staff members)")
 async def global_announcement(ctx, *, message):
-    if not ctx.author.id == 285084565469528064:
+    if not ctx.author.id == 285084565469528064 and not ctx.author.id == 324566856184627200:
         creator: User = await bot.fetch_user(285084565469528064)
         await ctx.send(
             f"This is a bot's staff command only... You can't just use it dummy")
@@ -947,49 +947,48 @@ async def memcommand(ctx, type: str = None):
         submission = subreddit.random()
         posturl = f"https://www.reddit.com/r/memes/comments/{submission}/.json"
         try:
-            urllib.request.urlretrieve(posturl, f'reddit_jsons/{submission}.json')
+            # urllib.request.urlretrieve(posturl, f'reddit_jsons/{submission}.json')
+            r = requests.get(posturl, headers={'User-agent': 'Mozilla/5.0'})
+            jsonfile = r.json()
         except Exception:
-            await ctx.send(f"Seems like reddit doesn't like this many requests... Let's wait a bit....")
+            await ctx.send(f"There was a problem getting the meme... Try again later")
             return
-        with open(f"reddit_jsons/{submission}.json") as f:
-            actualfile = json.load(f)
-        imgurl = actualfile[0]['data']['children'][0]['data']['url']
+
+        imgurl = jsonfile[0]['data']['children'][0]['data']['url']
 
     elif type == "dank":
         subreddit = reddit.subreddit("dankmemes")
         submission = subreddit.random()
         posturl = f"https://www.reddit.com/r/dankmemes/comments/{submission}/.json"
         try:
-            urllib.request.urlretrieve(posturl, f'reddit_jsons/{submission}.json')
+            r = requests.get(posturl, headers={'User-agent': 'Mozilla/5.0'})
         except Exception:
-            await ctx.send(f"Seems like reddit doesn't like this many requests... Let's wait a bit....")
+            await ctx.send(f"There was a problem getting the meme... Try again later")
             return
-        with open(f"reddit_jsons/{submission}.json") as f:
-            actualfile = json.load(f)
-        imgurl = actualfile[0]['data']['children'][0]['data']['url']
+        jsonfile = r.json()
+        imgurl = jsonfile[0]['data']['children'][0]['data']['url']
 
     elif type == "programmer":
         subreddit = reddit.subreddit("ProgrammerHumor")
         submission = subreddit.random()
         posturl = f"https://www.reddit.com/r/ProgrammerHumor/comments/{submission}/.json"
         try:
-            urllib.request.urlretrieve(posturl, f'reddit_jsons/{submission}.json')
+            r = requests.get(posturl, headers={'User-agent': 'Mozilla/5.0'})
         except Exception:
-            await ctx.send(f"Seems like reddit doesn't like this many requests... Let's wait a bit....")
+            await ctx.send(f"There was a problem getting the meme... Try again later")
             return
-        with open(f"reddit_jsons/{submission}.json") as f:
-            actualfile = json.load(f)
-        imgurl = actualfile[0]['data']['children'][0]['data']['url']
+        jsonfile = r.json()
+        imgurl = jsonfile[0]['data']['children'][0]['data']['url']
 
     elif type != "dank" or type != "programmer":
         await ctx.send(f"Please specify a valid type (dank, programmer)")
         return
 
-    memeembed = discord.Embed(color=discord.Color.greyple())
+    memeembed = discord.Embed(title=jsonfile[0]['data']['children'][0]['data']['title'], color=discord.Color.greyple())
     memeembed.set_image(url=imgurl)
     memeembed.set_footer(text=f"Meme requested by {ctx.author.name} from r/{str(subreddit)}")
     await ctx.send(embed=memeembed)
-    os.remove(f"reddit_jsons/{submission}.json")
+    # os.remove(f"reddit_jsons/{submission}.json")
 
 
 @bot.command(name="aww")
@@ -1009,25 +1008,24 @@ async def awwcommand(ctx):
     submission = subreddit.random()
     posturl = f"https://www.reddit.com/r/{str(subreddit)}/comments/{submission}/.json"
     try:
-        urllib.request.urlretrieve(posturl, f'reddit_jsons/{submission}.json')
+        r = requests.get(posturl, headers={'User-agent': 'Mozilla/5.0'})
     except Exception:
         await ctx.send(f"Seems like reddit doesn't like this many requests... Let's wait a bit....")
         return
-    with open(f"reddit_jsons/{submission}.json") as f:
-        actualfile = json.load(f)
 
-    videoval = actualfile[0]['data']['children'][0]['data']['is_video']
+    jsonfile = r.json()
+
+    videoval = jsonfile[0]['data']['children'][0]['data']['is_video']
     if videoval:
         await awwcommand(ctx)
         return
 
-    imgurl = actualfile[0]['data']['children'][0]['data']['url']
+    imgurl = jsonfile[0]['data']['children'][0]['data']['url']
 
     memeembed = discord.Embed(color=discord.Color.greyple())
     memeembed.set_image(url=imgurl)
     memeembed.set_footer(text=f"Cuteness requested by {ctx.author.name} from r/{str(subreddit)}")
     await ctx.send(embed=memeembed)
-    os.remove(f"reddit_jsons/{submission}.json")
 
 
 bot.run(TOKEN)
