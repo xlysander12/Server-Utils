@@ -1,7 +1,6 @@
 import json
 import os
 import random
-from datetime import date
 from datetime import datetime
 
 import discord
@@ -404,15 +403,14 @@ async def create_channel(ctx, channel_category, channel_name):
         channel: TextChannel = discord.utils.get(ctx.guild.text_channels, name=channel_name)
         category: discord.CategoryChannel = discord.utils.get(ctx.guild.categories, name=channel_category)
 
-        fdate = date.today().strftime('%d/%m/%Y')
-        now = datetime.now().strftime('%H:%M:%S')
+        fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
 
         logsembed = discord.Embed(
             title="Channel created",
             colour=discord.Color.dark_blue()
         )
 
-        logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+        logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
         logsembed.add_field(name="Channel name", value=channel.mention, inline=True)
         logsembed.add_field(name="Category", value=category.name, inline=True)
 
@@ -519,15 +517,14 @@ async def changeprefix(ctx, prefix):
 
     await ctx.send(f"Prefix changed to `{prefix}`")
 
-    fdate = date.today().strftime('%d/%m/%Y')
-    now = datetime.now().strftime('%H:%M:%S')
+    fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
 
     logsembed = discord.Embed(
         title="Server prefix changed",
         colour=discord.Color.purple()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
     logsembed.add_field(name="Prefix changed to", value=f'{prefix}', inline=True)
 
     logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
@@ -547,15 +544,14 @@ async def changeadmin(ctx, role: Role):
 
     await ctx.send(f"Admin role changed to {role.mention}")
 
-    fdate = date.today().strftime('%d/%m/%Y')
-    now = datetime.now().strftime('%H:%M:%S')
+    fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
 
     logsembed = discord.Embed(
         title="Admin role changed",
         colour=discord.Color.red()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}")
+    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
     logsembed.add_field(name="Role changed to", value=role.mention, inline=True)
 
     logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
@@ -597,6 +593,19 @@ async def changemusic(ctx, channel: TextChannel):
 
     await ctx.send(f"Music channel changed to {channel.mention}")
 
+    fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
+
+    logsembed = discord.Embed(
+        title="Music channel changed",
+        colour=discord.Color.dark_orange()
+    )
+
+    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
+    logsembed.add_field(name="New music channel", value=f'{channel.mention}', inline=True)
+
+    logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
+    await logschannel.send(embed=logsembed)
+
 
 @bot.command(name="autorole", help="Enables/Disables auto role feature")
 async def autorole(ctx):
@@ -628,8 +637,7 @@ async def kickmember(ctx, target: Member, *, reason="None"):
         await ctx.send("You are not an admin!")
         return
 
-    fdate = date.today().strftime('%d/%m/%Y')
-    now = datetime.now().strftime('%H:%M:%S')
+    fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
 
     invite = await ctx.channel.create_invite()
     channel = await target.create_dm()
@@ -666,7 +674,7 @@ async def kickmember(ctx, target: Member, *, reason="None"):
         colour=discord.Color.orange()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}", icon_url=ctx.message.author.avatar_url)
+    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}", icon_url=ctx.message.author.avatar_url)
     logsembed.add_field(name="Kicked member", value=target.mention, inline=True)
     logsembed.add_field(name="Reason", value=reason, inline=True)
 
@@ -683,8 +691,7 @@ async def banmember(ctx, target: Member, reason='None'):
         await ctx.send("You are not an admin!")
         return
 
-    fdate = date.today().strftime('%d/%m/%Y')
-    now = datetime.now().strftime('%H:%M:%S')
+    fdate = datetime.combine(datetime.date(), datetime.time).strftime("%A, %B %d %Y @ %H:%M:%S %p")
 
     channel = await target.create_dm()
     clientembed = discord.Embed(
@@ -708,7 +715,7 @@ async def banmember(ctx, target: Member, reason='None'):
         colour=discord.Color.orange()
     )
 
-    logsembed.set_footer(text=f"{ctx.message.author.name} at {now} of {fdate}", icon_url=ctx.author.avatar_url)
+    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}", icon_url=ctx.author.avatar_url)
     logsembed.add_field(name="Banned member", value=target.mention, inline=True)
     logsembed.add_field(name="Reason", value=reason, inline=True)
 
@@ -720,6 +727,63 @@ async def banmember(ctx, target: Member, reason='None'):
 @bot.command(name="clear", help="cleans a certain ammount of messages in the channel")
 async def clear_messages(ctx, ammount: int):
     await ctx.message.channel.purge(limit=ammount + 1)
+
+
+@bot.command(name="server")
+async def servercommand(ctx):
+    members: int = ctx.guild.member_count
+    rolesnum: int = 0
+    for _ in ctx.guild.roles:
+        rolesnum = rolesnum + 1
+
+    creationdate = ctx.guild.created_at
+    owner: Member = ctx.guild.owner
+
+    onlinestaff: int = 0
+    admin_role_id = get_adminrole(ctx)
+    for member in ctx.guild.members:
+        if member in ctx.guild.get_role(admin_role_id).members:
+            status = member.status
+            if str(status) != 'offline':
+                onlinestaff = onlinestaff + 1
+
+    serverembed = discord.Embed(title="Server stats", color=discord.Color.dark_gold())
+    serverembed.set_footer(text=ctx.guild.name, icon_url=ctx.guild.icon_url)
+    serverembed.add_field(name="Number of members", value=members, inline=False)
+    serverembed.add_field(name="Number of online staff", value=onlinestaff, inline=False)
+    serverembed.add_field(name="Number of roles", value=rolesnum, inline=False)
+    serverembed.add_field(name="When was this server created", value=creationdate, inline=False)
+    serverembed.add_field(name="Who's the owner of this server", value=owner.mention, inline=False)
+
+    await ctx.send(embed=serverembed)
+
+
+@bot.command(name="info")
+async def memberinfo(ctx, member: Member):
+    rolesqntty = 0
+    for _ in member.roles:
+        rolesqntty = rolesqntty + 1
+
+    toprole: Role = (member.top_role).name
+
+    joinedat = member.joined_at.strftime("%A, %B %d %Y @ %H:%M:%S %p")
+    admin_role_id = get_adminrole(ctx)
+    if member in ctx.guild.get_role(admin_role_id).members:
+        isstaff = "Yes"
+    else:
+        isstaff = "No"
+
+    currentstatus = str(member.status)
+
+    infoembed = discord.Embed(title="User info", color=discord.Color.dark_magenta())
+    infoembed.set_footer(text=member.display_name, icon_url=member.avatar_url)
+    infoembed.add_field(name="Quantity of roles", value=rolesqntty, inline=False)
+    infoembed.add_field(name="Most powerful role", value=toprole, inline=False)
+    infoembed.add_field(name="Is he an admin?", value=isstaff, inline=False)
+    infoembed.add_field(name="In the server since", value=joinedat, inline=False)
+    infoembed.add_field(name="Current status", value=currentstatus.capitalize(), inline=False)
+
+    await ctx.send(embed=infoembed)
 
 
 @bot.command(name="globalannouncement",
@@ -759,6 +823,12 @@ async def helpcommand(ctx, page: int = 0):
                              value=f"Retrieves a random number between a and b.", inline=False)
         helpembed1.add_field(name=f"{get_prefix(ctx.guild)}roll-dice <num of dice> <num of faces>",
                              value=f"Simulates dice throwing.", inline=False)
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}color-pick <color>",
+                             value=f"Try to guess the right color.", inline=False)
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}server",
+                             value=f"Show information about the server.", inline=False)
+        helpembed1.add_field(name=f"{get_prefix(ctx.guild)}info <user>",
+                             value=f"Show information about the specified user.", inline=False)
         helpembed1.add_field(name=f"{get_prefix(ctx.guild)}help [page]", value=f"Displays the help message",
                              inline=False)
 
@@ -839,6 +909,28 @@ async def set_globalannouncements(ctx):
         with open("announcements.json", 'w') as f:
             json.dump(guilds, f, indent=4)
         return
+
+
+@bot.command(name="color-pick")
+async def colourpick(ctx, *, color):
+    if color == "red" or color == "green" or color == "blue" or color == "yellow":
+        num = random.randint(1, 100)
+        colour: str = None
+        if 1 <= num <= 25:
+            colour = "red"
+        elif 26 <= num <= 50:
+            colour = "green"
+        elif 51 <= num <= 75:
+            colour = "blue"
+        elif 76 <= num <= 100:
+            colour = "yellow"
+
+        if color == colour:
+            return await ctx.send(f"{ctx.author.mention} you won!")
+        else:
+            return await ctx.send(f"{ctx.author.mention} you lost! The right color was {colour}.")
+
+    return await ctx.send(f"You need to pick a valid color (red, green, blue or yellow)")
 
 
 bot.run(TOKEN)
