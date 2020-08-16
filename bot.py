@@ -1,9 +1,10 @@
-import json
 import os
 import random
+import sys
 from datetime import datetime
 
 import discord
+import mysql.connector as mysql
 import requests
 from discord import Guild
 from discord import Member
@@ -19,182 +20,389 @@ from redditbot import reddit
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 servers = 0
+in_setup = []
+
+# Connect to mysql
+try:
+    mydb = mysql.connect(
+        host="{HOST}",
+        user="{USER}",
+        password="{PASSWORD}",
+        database="{DB_NAME}"
+    )
+    print(f"Connected to database")
+except mysql.Error:
+    sys.exit(f"Couldn't establish connection to mysql server")
+
+mycursor = mydb.cursor()
 
 
 # noinspection PyUnusedLocal
 def get_prefixbot(client, message):
-    with open("prefixes.json", 'r') as f:
-        prefixes = json.load(f)
-    return prefixes[str(message.guild.id)]
+    # with open("prefixes.json", 'r') as f:
+    # prefixes = json.load(f)
+    # return prefixes[str(message.guild.id)]
+    sqlcommand = f"SELECT prefix FROM prefixes WHERE guildid = %s"
+    vals = (message.guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    prefix = str(result[0])
+    return prefix.replace("(", "").replace(")", "").replace(",", "").replace("'", "")
 
 
 def get_prefix(guild: Guild):
-    with open("prefixes.json", 'r') as f:
-        prefixes = json.load(f)
-    return prefixes[str(guild.id)]
+    sqlcommand = f"SELECT prefix FROM prefixes WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    prefix = str(result[0])
+    return prefix.replace("(", "").replace(")", "").replace(",", "").replace("'", "")
 
 
 def get_adminrole(message):
-    with open("admins.json", 'r') as f:
-        admins = json.load(f)
-    role: Role = discord.utils.get(message.guild.roles, id=admins[str(message.guild.id)])
-    return role.id
+    # with open("admins.json", 'r') as f:
+    # admins = json.load(f)
+
+    sqlcommand = f"SELECT roleid FROM adminroles WHERE guildid = %s"
+    vals = (message.guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strroleid = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    roleid = int(strroleid)
+    # role: Role = discord.utils.get(message.guild.roles, id=roleid)
+    return roleid
 
 
 def get_logschannel(message):
-    with open("logs.json") as f:
-        channels = json.load(f)
-    channel: TextChannel = discord.utils.get(message.guild.text_channels, id=channels[str(message.guild.id)])
-    return channel.id
+    # with open("logs.json") as f:
+    #     channels = json.load(f)
+    # channel: TextChannel = discord.utils.get(message.guild.text_channels, id=channels[str(message.guild.id)])
+    sqlcommand = "SELECT channelid FROM logschannels WHERE guildid = %s"
+    vals = (message.guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strchannelid = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    channelid = int(strchannelid)
+    return channelid
 
 
 def get_announcementsvalue(message):
-    with open("announcements.json") as f:
-        guilds = json.load(f)
-    value: bool = guilds[str(message.guild.id)]
-    return value
+    # with open("announcements.json") as f:
+    #     guilds = json.load(f)
+    # value: bool = guilds[str(message.guild.id)]
+    # return value
+    sqlcommand = "SELECT value FROM globalannouncementsvalue WHERE guildid = %s"
+    vals = (message.guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strresult = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    intresult = int(strresult)
+    boolresult = bool(intresult)
+    return boolresult
 
 
 def get_globalannouncementsvalue(guild: Guild):
-    with open("announcements.json") as f:
-        guilds = json.load(f)
-    value: bool = guilds[str(guild.id)]
-    return value
+    # with open("announcements.json") as f:
+    #     guilds = json.load(f)
+    # value: bool = guilds[str(guild.id)]
+    # return value
+    sqlcommand = "SELECT value FROM globalannouncementsvalue WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strresult = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    intresult = int(strresult)
+    boolresult = bool(intresult)
+    return boolresult
 
 
 def get_globallogschannel(guild: Guild):
-    with open("logs.json") as f:
-        channels = json.load(f)
-    channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
-    return channel.id
+    # with open("logs.json") as f:
+    #     channels = json.load(f)
+    # channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+    # return channel.id
+    sqlcommand = "SELECT channelid FROM logschannels WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strchannelid = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    channelid = int(strchannelid)
+    return channelid
 
 
 def get_musicchannel(guild: Guild):
-    with open("cogs/music.json") as f:
-        channels = json.load(f)
-    channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
-    return channel.id
+    # with open("cogs/music.json") as f:
+    #     channels = json.load(f)
+    # channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+    # return channel.id
+    sqlcommand = "SELECT channelid FROM musicchannels WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    return result[0]
 
 
 def get_defrole(guild: Guild):
-    with open("defaultroles.json") as f:
-        defroles = json.load(f)
-    defrole: Role = discord.utils.get(guild.roles, id=defroles[str(guild.id)])
-    return defrole.id
+    # with open("defaultroles.json") as f:
+    #     defroles = json.load(f)
+    # defrole: Role = discord.utils.get(guild.roles, id=defroles[str(guild.id)])
+    # return defrole.id
+    sqlcommand = "SELECT roleid FROM autorole WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strchannelid = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    roleid = int(strchannelid)
+    return roleid
 
 
 def get_autorole(guild: Guild):
-    with open("autorole.json") as f:
-        autovals = json.load(f)
-    autoval: bool = autovals[str(guild.id)]
-    return autoval
+    # with open("autorole.json") as f:
+    #     autovals = json.load(f)
+    # autoval: bool = autovals[str(guild.id)]
+    # return autoval
+    sqlcommand = "SELECT value FROM autorole WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strresult = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    intresult = int(strresult)
+    boolresult = bool(intresult)
+    return boolresult
 
 
 def get_setup(guild: Guild):
-    with open("has_setup.json") as f:
-        guilds = json.load(f)
-    val = guilds[str(guild.id)]
-    return val
+    # with open("has_setup.json") as f:
+    #     guilds = json.load(f)
+    # val = guilds[str(guild.id)]
+    # return val
+    sqlcommand = "SELECT value FROM has_setup WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strresult = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    intresult = int(strresult)
+    boolresult = bool(intresult)
+    return boolresult
 
 
-def has_logs_channel(guild: Guild):
-    with open("logs.json") as f:
-        channels = json.load(f)
-    try:
-        if channels[str(guild.id)]:
-            return True
-        else:
-            return False
-    except Exception:
-        return False
+# def has_logs_channel(guild: Guild):
+#     with open("logs.json") as f:
+#         channels = json.load(f)
+#     try:
+#         if channels[str(guild.id)]:
+#             return True
+#         else:
+#             return False
+#     except Exception:
+#         return False
 
 
-# set funcions
+# set functions
 def set_prefix(guild: Guild, prefix):
-    with open("prefixes.json") as f:
-        prefixes = json.load(f)
-
-    prefixes[str(guild.id)] = prefix
-
-    with open("prefixes.json", 'w') as f:
-        json.dump(prefixes, f, indent=4)
+    # with open("prefixes.json") as f:
+    #     prefixes = json.load(f)
+    #
+    # prefixes[str(guild.id)] = prefix
+    #
+    # with open("prefixes.json", 'w') as f:
+    #     json.dump(prefixes, f, indent=4)
+    checksqlcommand = "SELECT * FROM prefixes WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if result:
+        sqlcommand = "UPDATE prefixes SET prefix = %s WHERE guildid = %s"
+        vals = (prefix, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
+    if not result:
+        sqlcommand = "INSERT INTO prefixes(guildid, prefix) VALUES (%s, %s)"
+        vals = (guild.id, prefix)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
 
 
 def set_adminrole(guild: Guild, *, role: Role):
-    with open("admins.json") as f:
-        roles = json.load(f)
+    # with open("admins.json") as f:
+    #     roles = json.load(f)
+    #
+    # roles[str(guild.id)] = role.id
+    #
+    # with open("admins.json", 'w') as f:
+    #     json.dump(roles, f, indent=4)
 
-    roles[str(guild.id)] = role.id
-
-    with open("admins.json", 'w') as f:
-        json.dump(roles, f, indent=4)
+    checksqlcommand = "SELECT * FROM adminroles WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if not result:
+        sqlcommand = "INSERT INTO adminroles(guildid, roleid) VALUES (%s, %s)"
+        vals = (guild.id, role.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
+    if result:
+        sqlcommand = "UPDATE adminroles SET roleid = %s WHERE guildid = %s"
+        vals = (role.id, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
 
 
 def set_logschannel(guild: Guild, *, channel: TextChannel):
-    with open("logs.json") as f:
-        channels = json.load(f)
+    # with open("logs.json") as f:
+    #     channels = json.load(f)
+    #
+    # channels[str(guild.id)] = channel.id
+    #
+    # with open("logs.json", 'w') as f:
+    #     json.dump(channels, f, indent=4)
+    checksqlcommand = "SELECT * FROM logschannels WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if not result:
+        sqlcommand = "INSERT INTO logschannels(guildid, channelid) VALUES (%s, %s)"
+        vals = (guild.id, channel.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
+    if result:
+        sqlcommand = "UPDATE logschannels SET channelid = %s WHERE guildid = %s"
+        vals = (channel.id, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+        return
 
-    channels[str(guild.id)] = channel.id
 
-    with open("logs.json", 'w') as f:
-        json.dump(channels, f, indent=4)
-
-
-def set_defrole(guild: Guild, *, role: Role):
-    with open("defaultroles.json") as f:
-        defroles = json.load(f)
-    defroles[str(guild.id)] = role.id
-
-    with open("defaultroles.json", 'w') as f:
-        json.dump(defroles, f, indent=4)
+# def set_defrole(guild: Guild, *, role: Role):
+#     with open("defaultroles.json") as f:
+#         defroles = json.load(f)
+#     defroles[str(guild.id)] = role.id
+#
+#     with open("defaultroles.json", 'w') as f:
+#         json.dump(defroles, f, indent=4)
 
 
-def set_autorole(guild: Guild, val: bool):
-    with open("autorole.json") as f:
-        autovals = json.load(f)
-    autovals[str(guild.id)] = val
-
-    with open("autorole.json", 'w') as f:
-        json.dump(autovals, f, indent=4)
+def set_autorole(guild: Guild, val: bool, role: Role = None):
+    # with open("autorole.json") as f:
+    #     autovals = json.load(f)
+    # autovals[str(guild.id)] = val
+    #
+    # with open("autorole.json", 'w') as f:
+    #     json.dump(autovals, f, indent=4)
+    checksqlcommand = "SELECT * FROM autorole WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if result:
+        if val:
+            sqlcommand = "UPDATE autorole SET value = %s, roleid = %s WHERE guildid = %s"
+            vals = (1, role.id, guild.id)
+            mycursor.execute(sqlcommand, vals)
+            mydb.commit()
+        if not val:
+            sqlcommand = "UPDATE autorole SET value = %s WHERE guildid = %s"
+            vals = (0, guild.id)
+            mycursor.execute(sqlcommand, vals)
+            mydb.commit()
+    if not result:
+        if val:
+            sqlcommand = "INSERT INTO autorole(guildid, value, roleid) VALUES (%s, %s, %s)"
+            vals = (guild.id, 1, role.id)
+            mycursor.execute(sqlcommand, vals)
+            mydb.commit()
+        if not val:
+            sqlcommand = "INSERT INTO autorole(guildid, value) VALUES (%s, %s)"
+            vals = (guild.id, 0)
+            mycursor.execute(sqlcommand, vals)
+            mydb.commit()
 
 
 def set_musicchannel(guild: Guild, *, channel: TextChannel):
-    with open("cogs/music.json") as f:
-        channels = json.load(f)
-    channels[str(guild.id)] = channel.id
-
-    with open("cogs/music.json", 'w') as f:
-        json.dump(channels, f, indent=4)
+    # with open("cogs/music.json") as f:
+    #     channels = json.load(f)
+    # channels[str(guild.id)] = channel.id
+    #
+    # with open("cogs/music.json", 'w') as f:
+    #     json.dump(channels, f, indent=4)
+    checksqlcommand = "SELECT * FROM musicchannels WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if result:
+        sqlcommand = "UPDATE musicchannels SET channelid = %s WHERE guildid = %s"
+        vals = (channel.id, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+    if not result:
+        sqlcommand = "INSERT INTO musicchannels(guildid, channelid) VALUES (%s, %s)"
+        vals = (guild.id, channel.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
 
 
 def set_announcements(guild: Guild, value: str):
-    with open("announcements.json") as f:
-        guilds = json.load(f)
-
-    if value == 'yes':
-        guilds[str(guild.id)] = True
-    elif value == 'no':
-        guilds[str(guild.id)] = False
-    else:
-        return
-
-    with open("announcements.json", 'w') as f:
-        json.dump(guilds, f, indent=4)
+    # with open("announcements.json") as f:
+    #     guilds = json.load(f)
+    #
+    # if value == 'yes':
+    #     guilds[str(guild.id)] = True
+    # elif value == 'no':
+    #     guilds[str(guild.id)] = False
+    # else:
+    #     return
+    #
+    # with open("announcements.json", 'w') as f:
+    #     json.dump(guilds, f, indent=4)
+    if value == "yes":
+        sqlcommand = "UPDATE globalannouncementsvalue SET value = %s WHERE guildid = %s"
+        vals = (1, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+    if value == "no":
+        sqlcommand = "UPDATE globalannouncementsvalue SET value = %s WHERE guildid = %s"
+        vals = (0, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
 
 
 def set_setup(guild: Guild, value: bool):
-    with open("has_setup.json") as f:
-        guilds = json.load(f)
+    # with open("has_setup.json") as f:
+    #     guilds = json.load(f)
+    # if value:
+    #     guilds[str(guild.id)] = True
+    # if not value:
+    #     guilds[str(guild.id)] = False
+    #
+    # with open("has_setup.json", 'w') as f:
+    #     json.dump(guilds, f, indent=4)
     if value:
-        guilds[str(guild.id)] = True
+        value = 1
     if not value:
-        guilds[str(guild.id)] = False
+        value = 0
 
-    with open("has_setup.json", 'w') as f:
-        json.dump(guilds, f, indent=4)
+    checksqlcommand = "SELECT * FROM has_setup WHERE guildid = %s"
+    checkvals = (guild.id,)
+    mycursor.execute(checksqlcommand, checkvals)
+    result = mycursor.fetchall()
+    if result:
+        sqlcommand = "UPDATE has_setup SET value = %s WHERE guildid = %s"
+        vals = (value, guild.id)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
+    if not result:
+        sqlcommand = "INSERT INTO has_setup(guildid, value) VALUES (%s, %s)"
+        vals = (guild.id, value)
+        mycursor.execute(sqlcommand, vals)
+        mydb.commit()
 
 
 bot = commands.Bot(command_prefix=get_prefixbot)
+# bot = commands.Bot(command_prefix="!")
 bot.remove_command('help')
 
 
@@ -209,51 +417,59 @@ async def on_ready():
         servers = i
     print(f"Bot is connected to {i} guilds")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
-    bot.load_extension('cogs.music')
+    # bot.load_extension('cogs.music')
 
 
 @bot.event
 async def on_guild_join(guild):
     # Prefixes
-    with open("prefixes.json", 'r') as f:
-        prefixes = json.load(f)
+    # with open("prefixes.json", 'r') as f:
+    #     prefixes = json.load(f)
+    #
+    # prefixes[str(guild.id)] = '!'
+    #
+    # with open("prefixes.json", 'w') as f:
+    #     json.dump(prefixes, f, indent=4)
 
-    prefixes[str(guild.id)] = '!'
-
-    with open("prefixes.json", 'w') as f:
-        json.dump(prefixes, f, indent=4)
+    set_prefix(guild, "!")
 
     # Admin roles
-    with open("admins.json", 'r') as f:
-        admins = json.load(f)
-    admins[str(guild.id)] = 'admin'
-
-    with open("admins.json", 'w') as f:
-        json.dump(admins, f, indent=4)
+    # with open("admins.json", 'r') as f:
+    #     admins = json.load(f)
+    # admins[str(guild.id)] = 'admin'
+    #
+    # with open("admins.json", 'w') as f:
+    #     json.dump(admins, f, indent=4)
 
     # Global announcements
-    with open("announcements.json") as f:
-        guilds = json.load(f)
-    guilds[str(guild.id)] = True
-
-    with open("announcements.json", 'w') as f:
-        json.dump(guilds, f, indent=4)
+    # with open("announcements.json") as f:
+    #     guilds = json.load(f)
+    # guilds[str(guild.id)] = True
+    #
+    # with open("announcements.json", 'w') as f:
+    #     json.dump(guilds, f, indent=4)
+    announcementssqlcommand = "INSERT INTO globalannouncementsvalue(guildid, value) VALUES (%s, %s)"
+    vals = (guild.id, 1)
+    mycursor.execute(announcementssqlcommand, vals)
+    mydb.commit()
 
     # Auto Role
-    with open("autorole.json") as f:
-        autovals = json.load(f)
-    autovals[str(guild.id)] = False
-
-    with open("autorole.json", 'w') as f:
-        json.dump(autovals, f, indent=4)
+    # with open("autorole.json") as f:
+    #     autovals = json.load(f)
+    # autovals[str(guild.id)] = False
+    # 
+    # with open("autorole.json", 'w') as f:
+    #     json.dump(autovals, f, indent=4)
+    set_autorole(guild, False)
 
     # Setup check
-    with open("has_setup.json") as f:
-        setupvals = json.load(f)
-    setupvals[str(guild.id)] = False
-
-    with open("has_setup.json", 'w') as f:
-        json.dump(setupvals, f, indent=4)
+    # with open("has_setup.json") as f:
+    #     setupvals = json.load(f)
+    # setupvals[str(guild.id)] = False
+    #
+    # with open("has_setup.json", 'w') as f:
+    #     json.dump(setupvals, f, indent=4)
+    set_setup(guild, False)
 
     # Messaging server owner
     embed = discord.Embed(title="Hey, looks like I'm in your server!",
@@ -290,55 +506,85 @@ async def on_guild_join(guild):
 @bot.event
 async def on_guild_remove(guild):
     # Prefixes
-    with open("prefixes.json", 'r') as f:
-        prefixes = json.load(f)
-    prefixes.pop(str(guild.id))
+    # with open("prefixes.json", 'r') as f:
+    #     prefixes = json.load(f)
+    # prefixes.pop(str(guild.id))
+    #
+    # with open("prefixes.json", 'w') as f:
+    #     json.dump(prefixes, f, indent=4)
 
-    with open("prefixes.json", 'w') as f:
-        json.dump(prefixes, f, indent=4)
-
+    prefixsqlcommand = "DELETE FROM prefixes WHERE guildid = %s"
+    prefixvals = (guild.id,)
+    mycursor.execute(prefixsqlcommand, prefixvals)
+    mydb.commit()
     # Admin roles
-    with open("admins.json", 'r') as f:
-        admins = json.load(f)
-    admins.pop(str(guild.id))
-
-    with open("admins.json", 'w') as f:
-        json.dump(admins, f, indent=4)
+    # with open("admins.json", 'r') as f:
+    #     #     admins = json.load(f)
+    #     # admins.pop(str(guild.id))
+    #     #
+    #     # with open("admins.json", 'w') as f:
+    #     #     json.dump(admins, f, indent=4)
+    adminsqlcommand = "DELETE FROM adminroles WHERE guildid = %s"
+    adminvals = (guild.id,)
+    mycursor.execute(adminsqlcommand, adminvals)
+    mydb.commit()
 
     # Logs' channel
 
-    haslogs = has_logs_channel(guild)
-    if haslogs:
-        with open("logs.json") as f:
-            channels = json.load(f)
-        channels.pop(str(guild.id))
-
-        with open("logs.json", 'w') as f:
-            json.dump(channels, f, indent=4)
+    # haslogs = has_logs_channel(guild)
+    # if haslogs:
+    #     with open("logs.json") as f:
+    #         channels = json.load(f)
+    #     channels.pop(str(guild.id))
+    #
+    #     with open("logs.json", 'w') as f:
+    #         json.dump(channels, f, indent=4)
+    logssqlcommand = "DELETE FROM logschannels WHERE guildid = %s"
+    logsvals = (guild.id,)
+    mycursor.execute(logssqlcommand, logsvals)
+    mydb.commit()
 
     # Announcements
-    with open("announcements.json") as f:
-        guilds = json.load(f)
-    guilds.pop(str(guild.id))
-
-    with open("announcements.json", 'w') as f:
-        json.dump(guilds, f, indent=4)
+    # with open("announcements.json") as f:
+    #     guilds = json.load(f)
+    # guilds.pop(str(guild.id))
+    #
+    # with open("announcements.json", 'w') as f:
+    #     json.dump(guilds, f, indent=4)
+    announcementssqlcommand = "DELETE FROM globalannouncementsvalue WHERE guildid = %s"
+    announcementsvals = (guild.id,)
+    mycursor.execute(announcementssqlcommand, announcementsvals)
+    mydb.commit()
 
     # Auto role
-    with open("autorole.json") as f:
-        autovals = json.load(f)
-    autovals.pop(str(guild.id))
-
-    with open("autorole.json", 'w') as f:
-        json.dump(autovals, f, indent=4)
+    # with open("autorole.json") as f:
+    #     autovals = json.load(f)
+    # autovals.pop(str(guild.id))
+    #
+    # with open("autorole.json", 'w') as f:
+    #     json.dump(autovals, f, indent=4)
+    autorolesqlcommand = "DELETE FROM autorole WHERE guildid = %s"
+    autorolevals = (guild.id,)
+    mycursor.execute(autorolesqlcommand, autorolevals)
+    mydb.commit()
 
     # Setup check
-    with open("has_setup.json") as f:
-        setupvals = json.load(f)
-    setupvals[str(guild.id)] = False
+    # with open("has_setup.json") as f:
+    #     setupvals = json.load(f)
+    # setupvals[str(guild.id)] = False
+    #
+    # with open("has_setup.json", 'w') as f:
+    #     json.dump(setupvals, f, indent=4)
+    setupsqlcommand = "DELETE FROM has_setup WHERE guildid = %s"
+    setupvals = (guild.id,)
+    mycursor.execute(setupsqlcommand, setupvals)
+    mydb.commit()
 
-    with open("has_setup.json", 'w') as f:
-        json.dump(setupvals, f, indent=4)
+    # Music channel
+    musicsqlcommand = "DELETE FROM musicchanells WHERE guildid = %s"
+    musicvals = (guild.id,)
+    mycursor.execute(musicsqlcommand, musicvals)
+    mydb.commit()
 
     # Changing presence
     global servers
@@ -362,13 +608,90 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
+    if message.content == "!!SOS":
+        await message.channel.send(f"SOS COMMAND EXECUTED. RESTARTING EVERYTHING")
+        # Deleting prefix
+        prefixsqlcommand = "DELETE FROM prefixes WHERE guildid = %s"
+        prefixvals = (message.channel.guild.id,)
+        mycursor.execute(prefixsqlcommand, prefixvals)
+        mydb.commit()
+        await message.channel.send(f"Prefix deleted")
+
+        # Deleting admin role
+        adminsqlcommand = "DELETE FROM adminroles WHERE guildid = %s"
+        adminvals = (message.channel.guild.id,)
+        mycursor.execute(adminsqlcommand, adminvals)
+        mydb.commit()
+        await message.channel.send(f"Admin role deleted")
+
+        # Deleting logs channel
+        logssqlcommand = "DELETE FROM logschannels WHERE guildid = %s"
+        logsvals = (message.channel.guild.id,)
+        mycursor.execute(logssqlcommand, logsvals)
+        mydb.commit()
+        await message.channel.send(f"Logs channel deleted")
+
+        # Deleting announcements value
+        announcementssqlcommand = "DELETE FROM globalannouncementsvalue WHERE guildid = %s"
+        announcementsvals = (message.channel.guild.id,)
+        mycursor.execute(announcementssqlcommand, announcementsvals)
+        mydb.commit()
+        await message.channel.send(f"Global announcements value deleted")
+
+        # Deleting autorole
+        autorolesqlcommand = "DELETE FROM autorole WHERE guildid = %s"
+        autorolevals = (message.channel.guild.id,)
+        mycursor.execute(autorolesqlcommand, autorolevals)
+        mydb.commit()
+        await message.channel.send(f"Autorole settings deleted")
+
+        # Deleting music
+        musicsqlcommand = "DELETE FROM musicchannels WHERE guildid = %s"
+        musicvals = (message.channel.guild.id,)
+        mycursor.execute(musicsqlcommand, musicvals)
+        mydb.commit()
+        await message.channel.send(f"Music settings deleted")
+
+        # Deleting setup
+        setupsqlcommand = "DELETE FROM has_setup WHERE guildid = %s"
+        setupvals = (message.channel.guild.id,)
+        mycursor.execute(setupsqlcommand, setupvals)
+        mydb.commit()
+        await message.channel.send(f"Setup memory deleted")
+
+        await message.channel.send(f"Deleting process completed. Starting applying defaults....")
+
+        # Default prefix
+        set_prefix(message.channel.guild, "!")
+        await message.channel.send(f"Default prefix reconfigured (`!`)")
+
+        # Default announcements
+        announcementssqlcommand = "INSERT INTO globalannouncementsvalue(guildid, value) VALUES (%s, %s)"
+        vals = (message.channel.guild.id, 1)
+        mycursor.execute(announcementssqlcommand, vals)
+        mydb.commit()
+        await message.channel.send(f"Global announcements value set to default (`True`)")
+
+        # Default autorole
+        set_autorole(message.channel.guild, False)
+        await message.channel.send(f"Autorole value set to default (`False`)")
+
+        # Default setup
+        set_setup(message.channel.guild, False)
+        await message.channel.send(f"Setup memory restarded")
+
+        await message.channel.send(f"SOS process completed. Run `!setup` to reconfigure to your own liking")
+        return
+
     if message.content.startswith(get_prefix(message.channel.guild)):
         if not message.content == "!setup":
             setupval = get_setup(message.channel.guild)
             if not setupval:
-                await message.channel.send(
-                    f"You can't use commands before running the `{get_prefix(message.channel.guild)}setup` command!")
-                return
+                global in_setup
+                if message.channel.guild.id not in in_setup:
+                    await message.channel.send(
+                        f"You can't use commands before running the `{get_prefix(message.channel.guild)}setup` command!")
+                    return
 
     await bot.process_commands(message)
 
@@ -430,6 +753,8 @@ async def start_setup(ctx):
             f"This is a work in progress, therefore it can't be used except by my BEAUTIFUL creator "
             f"{creator.display_name}")
         return"""
+    global in_setup
+    in_setup.append(ctx.guild.id)
     await ctx.send(f"Lets start the setup... First write what you want the prefix for your server to be")
 
     def check(m):
@@ -475,6 +800,7 @@ async def start_setup(ctx):
         await ctx.send(f"Global announcements are now disabled")
 
     set_setup(ctx.guild, True)
+    in_setup.remove(ctx.guild.id)
     await ctx.send(
         f"Configuration finished. Remember you can re-configure anything it by using `{get_prefix(ctx.message.guild)}setup` again or using the respective commands")
 
@@ -510,13 +836,14 @@ async def start_setup(ctx, prefix: str = None, adminrole: Role = None, logschann
 @bot.command(name="changeprefix", help="Choose the prefix for your server")
 @commands.has_permissions(administrator=True)
 async def changeprefix(ctx, prefix):
-    with open("prefixes.json", 'r') as f:
-        prefixes = json.load(f)
-
-    prefixes[str(ctx.guild.id)] = prefix
-
-    with open("prefixes.json", 'w') as f:
-        json.dump(prefixes, f, indent=4)
+    # with open("prefixes.json", 'r') as f:
+    #     prefixes = json.load(f)
+    #
+    # prefixes[str(ctx.guild.id)] = prefix
+    #
+    # with open("prefixes.json", 'w') as f:
+    #     json.dump(prefixes, f, indent=4)
+    set_prefix(ctx.guild, prefix)
 
     await ctx.send(f"Prefix changed to `{prefix}`")
 
@@ -537,28 +864,30 @@ async def changeprefix(ctx, prefix):
 @bot.command(name="changeadminrole", help="Choose the role that can execute admin commands")
 @commands.has_guild_permissions(administrator=True)
 async def changeadmin(ctx, role: Role):
-    with open("admins.json", 'r') as f:
-        admins = json.load(f)
+    # with open("admins.json", 'r') as f:
+    #     admins = json.load(f)
+    #
+    # admins[str(ctx.guild.id)] = role.id
+    #
+    # with open("admins.json", 'w') as f:
+    #     json.dump(admins, f, indent=4)
+    #
+    # await ctx.send(f"Admin role changed to {role.mention}")
 
-    admins[str(ctx.guild.id)] = role.id
+    set_adminrole(ctx.guild, role=role)
 
-    with open("admins.json", 'w') as f:
-        json.dump(admins, f, indent=4)
-
-    await ctx.send(f"Admin role changed to {role.mention}")
-
-    fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
-
-    logsembed = discord.Embed(
-        title="Admin role changed",
-        colour=discord.Color.red()
-    )
-
-    logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
-    logsembed.add_field(name="Role changed to", value=role.mention, inline=True)
-
-    logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
-    await logschannel.send(embed=logsembed)
+    # fdate = datetime.now().strftime("%A, %B %d %Y @ %H:%M:%S %p")
+    #
+    # logsembed = discord.Embed(
+    #     title="Admin role changed",
+    #     colour=discord.Color.red()
+    # )
+    #
+    # logsembed.set_footer(text=f"{ctx.message.author.name}: {fdate}")
+    # logsembed.add_field(name="Role changed to", value=role.mention, inline=True)
+    #
+    # logschannel = discord.utils.get(ctx.guild.text_channels, id=get_logschannel(ctx))
+    # await logschannel.send(embed=logsembed)
 
 
 @bot.command(name="changelogschannel", help="Choose in which channel will bot's logs be in")
@@ -568,13 +897,14 @@ async def changelogs(ctx, channel: TextChannel):
         await ctx.send("You are not an admin!")
         return
 
-    with open("logs.json") as f:
-        channels = json.load(f)
-
-    channels[str(ctx.guild.id)] = channel.id
-
-    with open("logs.json", 'w') as f:
-        json.dump(channels, f, indent=4)
+    # with open("logs.json") as f:
+    #     channels = json.load(f)
+    #
+    # channels[str(ctx.guild.id)] = channel.id
+    #
+    # with open("logs.json", 'w') as f:
+    #     json.dump(channels, f, indent=4)
+    set_logschannel(ctx.guild, channel=channel)
 
     await ctx.send(f"Logs channel changed to {channel.mention}")
 
@@ -586,13 +916,14 @@ async def changemusic(ctx, channel: TextChannel):
         await ctx.send("You are not an admin!")
         return
 
-    with open("cogs/music.json") as f:
-        channels = json.load(f)
-
-    channels[str(ctx.guild.id)] = channel.id
-
-    with open("cogs/music.json", 'w') as f:
-        json.dump(channels, f, indent=4)
+    # with open("cogs/music.json") as f:
+    #     channels = json.load(f)
+    #
+    # channels[str(ctx.guild.id)] = channel.id
+    #
+    # with open("cogs/music.json", 'w') as f:
+    #     json.dump(channels, f, indent=4)
+    set_musicchannel(ctx.guild, channel=channel)
 
     await ctx.send(f"Music channel changed to {channel.mention}")
 
@@ -618,14 +949,14 @@ async def autorole(ctx):
         return m.author.id == ctx.author.id
 
     if not value:
-        set_autorole(ctx.guild, True)
+        # set_autorole(ctx.guild, True)
         await ctx.send(f"Auto role feature is now ENABLED. Mention the role you want to give by default")
         role: Message = await bot.wait_for("message", check=check)
         rolecontent = role.content
         roleid = rolecontent.replace("<", "").replace("@", "").replace("&", "").replace(">", "")
         introleid = int(roleid)
         actualrole = discord.utils.get(ctx.guild.roles, id=introleid)
-        set_defrole(ctx.guild, role=actualrole)
+        set_autorole(ctx.guild, True, actualrole)
         return await ctx.send(f"Default role changed to {actualrole.mention}.")
 
     if value:
@@ -801,7 +1132,8 @@ async def global_announcement(ctx, *, message):
     for guild in bot.guilds:
         if get_globalannouncementsvalue(guild):
             logschannel = discord.utils.get(guild.text_channels, id=get_globallogschannel(guild))
-            await logschannel.send(message)
+            embed = discord.Embed(title="GLOBAL ANNOUNCEMENT", description=message, color=discord.Colour.blurple())
+            await logschannel.send(embed=embed)
             print(f"Global message sent to {guild.name} (id: {guild.id})")
 
 
@@ -900,22 +1232,25 @@ async def set_globalannouncements(ctx):
     if ctx.author not in ctx.guild.get_role(admin_role_id).members:
         await ctx.send("You are not an admin!")
         return
-    if get_announcementsvalue(ctx):
-        with open("announcements.json") as f:
-            guilds = json.load(f)
-        guilds[str(ctx.guild.id)] = False
-
-        with open("announcements.json", 'w') as f:
-            json.dump(guilds, f, indent=4)
-        return
-    if not get_announcementsvalue(ctx):
-        with open("announcements.json") as f:
-            guilds = json.load(f)
-        guilds[str(ctx.guild.id)] = True
-
-        with open("announcements.json", 'w') as f:
-            json.dump(guilds, f, indent=4)
-        return
+    if get_announcementsvalue(ctx.message):
+        # with open("announcements.json") as f:
+        #     guilds = json.load(f)
+        # guilds[str(ctx.guild.id)] = False
+        #
+        # with open("announcements.json", 'w') as f:
+        #     json.dump(guilds, f, indent=4)
+        # return
+        set_announcements(ctx.guild, 'no')
+        return await ctx.send(f"Global announcements are now DISABLED")
+    if not get_announcementsvalue(ctx.message):
+        # with open("announcements.json") as f:
+        #     guilds = json.load(f)
+        # guilds[str(ctx.guild.id)] = True
+        #
+        # with open("announcements.json", 'w') as f:
+        #     json.dump(guilds, f, indent=4)
+        set_announcements(ctx.guild, 'yes')
+        return await ctx.send(f"Global announcements are now ENABLED")
 
 
 @bot.command(name="color-pick")
@@ -1026,6 +1361,22 @@ async def awwcommand(ctx):
     memeembed.set_image(url=imgurl)
     memeembed.set_footer(text=f"Cuteness requested by {ctx.author.name} from r/{str(subreddit)}")
     await ctx.send(embed=memeembed)
+
+
+@bot.command(name="important")
+async def important(ctx, *, message):
+    if not ctx.author.id == 285084565469528064 and not ctx.author.id == 324566856184627200:
+        creator: User = await bot.fetch_user(285084565469528064)
+        await ctx.send(
+            f"This is a bot's staff command only... You can't just use it dummy")
+        return
+    print(f"IMPORTANT announcement launched by {ctx.author.name}.")
+    for guild in bot.guilds:
+        importantchannel = await guild.create_text_channel("!!-IMPORTANT-!!")
+        embed = discord.Embed(title=f"IMPORTANT", description=message, color=discord.Colour.red())
+        embed.set_footer(text="After everything is good, you can delete this channel")
+        await importantchannel.send(guild.owner.mention, embed=embed)
+        print(f"IMPORTANT message sent to {guild.name} (id: {guild.id})")
 
 
 bot.run(TOKEN)

@@ -1,9 +1,9 @@
 import praw
 
 reddit = praw.Reddit(
-    client_id='{APP_ID}',
-    client_secret="{APP_SCRETER}",
-    password="{ACCOUNT_PASSWORD}",
+    client_id='xamsKcT6InpNzg',
+    client_secret="4N_PuSkK6AavzqvkPwBNh7D-ToY",
+    password="finguelinhas",
     user_agent="Server Utils discord bot",
-    username="{ACCOUNT_USERNAME}"
+    username="xlysander12"
 )
