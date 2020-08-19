@@ -1,3 +1,5 @@
+# sys.path.insert(1, 'cogs/')
+import asyncio
 import os
 import random
 import sys
@@ -13,6 +15,7 @@ from discord import Role
 from discord import TextChannel
 from discord import User
 from discord.ext import commands
+from discord.ext.tasks import loop
 from dotenv import load_dotenv
 
 from redditbot import reddit
@@ -21,23 +24,42 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 servers = 0
 in_setup = []
+mydb = None
+mycursor = None
+
 
 # Connect to mysql
-try:
-    mydb = mysql.connect(
-        host="{HOST}",
-        user="{USER}",
-        password="{PASSWORD}",
-        database="{DB_NAME}"
-    )
-    print(f"Connected to database")
-except mysql.Error:
-    sys.exit(f"Couldn't establish connection to mysql server")
+def connectmysql():
+    global mydb
+    global mycursor
+    try:
+        mydb = mysql.connect(
+            host="{IP}",
+            user="{user}",
+            password="{password}",
+            database="{db}"
+        )
+        print(f"Connected to database")
+    except mysql.Error:
+        sys.exit(f"Couldn't establish connection to mysql server")
 
-mycursor = mydb.cursor()
+    mycursor = mydb.cursor()
 
 
 # noinspection PyUnusedLocal
+@loop(count=None)
+async def keep_mysql():
+    while True:
+        # keepalive = "SELECT * FROM prefixes"
+        # mycursor.execute(keepalive)
+        # result = mycursor.fetchall()
+        # print("Keeping mysql connection alive")
+        # await asyncio.sleep(180)
+        mycursor.close()
+        connectmysql()
+        await asyncio.sleep(180)
+
+
 def get_prefixbot(client, message):
     # with open("prefixes.json", 'r') as f:
     # prefixes = json.load(f)
@@ -116,6 +138,16 @@ def get_globalannouncementsvalue(guild: Guild):
     return boolresult
 
 
+def get_musicchannel(guild: Guild):
+    sqlcommand = "SELECT channelid FROM musicchannels WHERE guildid = %s"
+    vals = (guild.id,)
+    mycursor.execute(sqlcommand, vals)
+    result = mycursor.fetchall()
+    strchannelid = str(result[0]).replace("(", "").replace(")", "").replace(",", "")
+    channelid = int(strchannelid)
+    return channelid
+
+
 def get_globallogschannel(guild: Guild):
     # with open("logs.json") as f:
     #     channels = json.load(f)
@@ -130,16 +162,16 @@ def get_globallogschannel(guild: Guild):
     return channelid
 
 
-def get_musicchannel(guild: Guild):
-    # with open("cogs/music.json") as f:
-    #     channels = json.load(f)
-    # channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
-    # return channel.id
-    sqlcommand = "SELECT channelid FROM musicchannels WHERE guildid = %s"
-    vals = (guild.id,)
-    mycursor.execute(sqlcommand, vals)
-    result = mycursor.fetchall()
-    return result[0]
+# def get_musicchannel(guild: Guild):
+#     # with open("cogs/music.json") as f:
+#     #     channels = json.load(f)
+#     # channel: TextChannel = discord.utils.get(guild.text_channels, id=channels[str(guild.id)])
+#     # return channel.id
+#     sqlcommand = "SELECT channelid FROM musicchannels WHERE guildid = %s"
+#     vals = (guild.id,)
+#     mycursor.execute(sqlcommand, vals)
+#     result = mycursor.fetchall()
+#     return result[0]
 
 
 def get_defrole(guild: Guild):
@@ -417,7 +449,9 @@ async def on_ready():
         servers = i
     print(f"Bot is connected to {i} guilds")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"{servers} servers"))
-    # bot.load_extension('cogs.music')
+    bot.load_extension('cogs.music')
+    connectmysql()
+    keep_mysql.start()
 
 
 @bot.event
@@ -1150,7 +1184,7 @@ async def helpcommand(ctx, page: int = 0):
         helpembed0.add_field(name='Admin Commands', value=f"{get_prefix(ctx.guild)}help 3", inline=False)
         await ctx.send(embed=helpembed0)
 
-    if page == 1:
+    if page == 1:  # User commands
         helpembed1 = discord.Embed(title='Help Menu', description="These are the commands Users can use",
                                    colour=discord.Color.blue())
         helpembed1.set_footer(text="User commands")
@@ -1173,7 +1207,7 @@ async def helpcommand(ctx, page: int = 0):
 
         await ctx.send(embed=helpembed1)
 
-    if page == 2:
+    if page == 2:  # Music commands
         helpembed2 = discord.Embed(title="Help Menu", description="These are the music related commands",
                                    colour=discord.Color.purple())
         helpembed2.set_footer(text="Music commands")
@@ -1185,14 +1219,18 @@ async def helpcommand(ctx, page: int = 0):
         helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music resume", value="Resumes the current music",
                              inline=False)
         helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music stop", value="Stops the music", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music leave", value="Makes the bot leave the voice channel",
+                             inline=False)
         helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music skip",
                              value="Skip to the next music in queue, if none the bot disconnects", inline=False)
+        helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music queue",
+                             value="Shows the current music queue", inline=False)
         helpembed2.add_field(name=f"{get_prefix(ctx.guild)}music volume <volume>",
                              value="Changes the volume of the music (Recomended: 10%)", inline=False)
 
         await ctx.send(embed=helpembed2)
 
-    if page == 3:
+    if page == 3:  # Admin commands
         helpembed3 = discord.Embed(title="Help Menu", description="These are the commands server admins can use",
                                    colour=discord.Color.red())
         helpembed3.set_footer(text="Admin commands")
@@ -1218,7 +1256,8 @@ async def helpcommand(ctx, page: int = 0):
         helpembed3.add_field(name=f"{get_prefix(ctx.guild)}kick <member> [reason]", value="Kicks specified member",
                              inline=False)
         helpembed3.add_field(name=f"{get_prefix(ctx.guild)}setup",
-                             value="First command to execute when bot joins the server. Configures everything that is needed",
+                             value="First command to execute when bot joins the server. Configures everything that is "
+                                   "needed",
                              inline=False)
 
         await ctx.send(embed=helpembed3)
